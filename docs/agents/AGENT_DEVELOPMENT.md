@@ -225,6 +225,95 @@ Each agent should have:
 5. **Error Propagation**: Don't silently swallow errors
 6. **Configuration Driven**: Use centralized config, avoid hardcoded values
 7. **Test Coverage**: Maintain high test coverage for all agents
+8. **Careful Git Management**: NEVER use `git add .` - always add individual files
+
+## Git Best Practices
+
+### **CRITICAL: Never Use `git add .`**
+
+**❌ NEVER DO THIS:**
+```bash
+git add .  # DANGEROUS - commits everything!
+```
+
+**✅ ALWAYS DO THIS:**
+```bash
+# Add specific files only
+git add coscientist/new_agent.py
+git add tests/test_new_agent.py
+git add prompts/new_agent_prompt.md
+```
+
+### **Why This Matters**
+
+- **Accidental commits**: `git add .` can commit logs, temp files, API keys, etc.
+- **Clean history**: Selective adding creates cleaner, more intentional commits
+- **Review process**: Easier to review changes when you know exactly what's included
+- **Debugging**: When something breaks, you know exactly what changed
+
+### **Safe Git Workflow**
+
+1. **Check what you're adding:**
+   ```bash
+   git status
+   git diff --cached  # See what's staged
+   ```
+
+2. **Add files individually:**
+   ```bash
+   git add coscientist/my_agent.py
+   git add tests/test_my_agent.py
+   git add docs/agents/my_agent_docs.md
+   ```
+
+3. **Verify before committing:**
+   ```bash
+   git status  # Double-check what's staged
+   git diff --cached  # Review the changes
+   ```
+
+4. **Commit with clear message:**
+   ```bash
+   git commit -m "Add new hypothesis validation agent
+
+   - Implement robust hypothesis validation logic
+   - Add comprehensive test coverage
+   - Update agent development documentation"
+   ```
+
+### **Files to NEVER Commit**
+
+- Log files (`*.log`, `logs/`)
+- Temporary files (`*.tmp`, `*.temp`)
+- API keys (`.env`, `secrets.json`)
+- IDE files (`.vscode/`, `.idea/`)
+- OS files (`.DS_Store`, `Thumbs.db`)
+- Python cache (`__pycache__/`, `*.pyc`)
+- Virtual environments (`.venv/`, `venv/`)
+
+### **When Adding New Agents**
+
+Always add files individually:
+
+```bash
+# Agent implementation
+git add coscientist/hypothesis_validation_agent.py
+
+# Tests
+git add tests/test_hypothesis_validation_agent.py
+
+# Documentation
+git add docs/agents/hypothesis_validation_guide.md
+
+# Prompts
+git add coscientist/prompts/hypothesis_validation.md
+
+# Configuration updates
+git add coscientist/researcher_config.json
+
+# Never do this:
+# git add .  # ❌ DANGEROUS!
+```
 
 ## Adding New Agents
 
@@ -236,6 +325,7 @@ When adding a new agent:
 4. Update this documentation
 5. Add agent to framework configuration
 6. Document agent in main README
+7. **Follow Git best practices above**
 
 ## Agent Communication Patterns
 
