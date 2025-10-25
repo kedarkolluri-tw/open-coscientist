@@ -1,53 +1,38 @@
 # Open CoScientist Agents Architecture
 
-## Agent Communication & Workflow Diagram
+## Functional Agent Flow Diagram
 
 ```mermaid
 graph TB
-    %% Main Orchestration Layer
-    subgraph "🎯 Main Orchestration"
-        USER[👤 User Input<br/>Research Goal]
-        FRAMEWORK[🏗️ CoscientistFramework<br/>Main Controller]
-        SUPERVISOR[🧠 Supervisor Agent<br/>Strategic Decision Maker]
-    end
-
-    %% Global State Management
-    subgraph "💾 Global State Manager"
-        STATE[📊 CoscientistStateManager<br/>Central State Coordinator]
-        PERSISTENCE[💾 State Persistence<br/>Auto-save Checkpoints]
-    end
-
+    %% User Input
+    USER[👤 User Input<br/>Research Goal]
+    
+    %% Main Orchestration
+    FRAMEWORK[🏗️ CoscientistFramework<br/>Main Controller]
+    SUPERVISOR[🧠 Supervisor Agent<br/>Strategic Decision Maker]
+    
+    %% Global State
+    STATE[📊 Global State Manager<br/>Central Coordination]
+    
     %% Core Research Agents
-    subgraph "📚 Research Agents"
-        LIT_REVIEW[📖 Literature Review Agent<br/>GPT Researcher Integration]
-        GENERATION[💡 Generation Agents<br/>Independent & Collaborative]
-        REFLECTION[🔍 Reflection Agents<br/>Deep Verification]
-        EVOLUTION[🔄 Evolution Agents<br/>Hypothesis Refinement]
-        META_REVIEW[📋 Meta-Review Agent<br/>Synthesis & Analysis]
-        FINAL_REPORT[📄 Final Report Agent<br/>Comprehensive Summary]
-    end
-
+    LIT_REVIEW[📖 Literature Review Agent<br/>Systematic Literature Analysis]
+    GENERATION[💡 Generation Agents<br/>Independent & Collaborative]
+    REFLECTION[🔍 Reflection Agents<br/>Deep Verification]
+    EVOLUTION[🔄 Evolution Agents<br/>Hypothesis Refinement]
+    META_REVIEW[📋 Meta-Review Agent<br/>Synthesis & Analysis]
+    FINAL_REPORT[📄 Final Report Agent<br/>Comprehensive Summary]
+    
     %% Supporting Systems
-    subgraph "🛠️ Supporting Systems"
-        TOURNAMENT[🏆 ELO Tournament<br/>Hypothesis Ranking]
-        PROXIMITY[🔗 Proximity Graph<br/>Semantic Relationships]
-        CONFIG[⚙️ Configuration Agent<br/>System Setup]
-    end
-
-    %% Error Handling & Validation
-    subgraph "⚠️ Error Handling & Validation"
-        VALIDATION[✅ Response Validation<br/>Catastrophic Failure Detection]
-        ROBUST_PARSING[🔧 Robust Parsing<br/>Self-Healing LLM Parsing]
-        CONFIG_VALIDATION[🔍 Config Validation<br/>Real API Testing]
-    end
-
-    %% Communication Flow
+    TOURNAMENT[🏆 ELO Tournament<br/>Hypothesis Ranking]
+    PROXIMITY[🔗 Proximity Graph<br/>Semantic Relationships]
+    
+    %% Main Flow
     USER --> FRAMEWORK
     FRAMEWORK --> STATE
     FRAMEWORK --> SUPERVISOR
     
     %% Supervisor Decision Loop
-    SUPERVISOR -->|"Decides Next Action"| FRAMEWORK
+    SUPERVISOR -->|"Analyzes State<br/>Decides Next Action"| FRAMEWORK
     FRAMEWORK -->|"Execute Action"| LIT_REVIEW
     FRAMEWORK -->|"Execute Action"| GENERATION
     FRAMEWORK -->|"Execute Action"| REFLECTION
@@ -55,81 +40,88 @@ graph TB
     FRAMEWORK -->|"Execute Action"| TOURNAMENT
     FRAMEWORK -->|"Execute Action"| META_REVIEW
     FRAMEWORK -->|"Execute Action"| FINAL_REPORT
-
+    
     %% State Communication (All agents read/write to state)
-    LIT_REVIEW <--> STATE
-    GENERATION <--> STATE
-    REFLECTION <--> STATE
-    EVOLUTION <--> STATE
-    META_REVIEW <--> STATE
-    FINAL_REPORT <--> STATE
-    TOURNAMENT <--> STATE
-    PROXIMITY <--> STATE
-
-    %% Error Handling Integration
-    VALIDATION -.->|"Validates All LLM Responses"| LIT_REVIEW
-    VALIDATION -.->|"Validates All LLM Responses"| GENERATION
-    VALIDATION -.->|"Validates All LLM Responses"| REFLECTION
-    VALIDATION -.->|"Validates All LLM Responses"| EVOLUTION
-    VALIDATION -.->|"Validates All LLM Responses"| META_REVIEW
-    VALIDATION -.->|"Validates All LLM Responses"| FINAL_REPORT
-    VALIDATION -.->|"Validates All LLM Responses"| SUPERVISOR
-
-    ROBUST_PARSING -.->|"Self-Healing Parsing"| GENERATION
-    ROBUST_PARSING -.->|"Self-Healing Parsing"| REFLECTION
-    ROBUST_PARSING -.->|"Self-Healing Parsing"| EVOLUTION
-
-    CONFIG_VALIDATION -.->|"Validates Configuration"| FRAMEWORK
-
-    %% Persistence
-    STATE --> PERSISTENCE
-
+    LIT_REVIEW <-->|"Read/Write"| STATE
+    GENERATION <-->|"Read/Write"| STATE
+    REFLECTION <-->|"Read/Write"| STATE
+    EVOLUTION <-->|"Read/Write"| STATE
+    META_REVIEW <-->|"Read/Write"| STATE
+    FINAL_REPORT <-->|"Read/Write"| STATE
+    TOURNAMENT <-->|"Read/Write"| STATE
+    PROXIMITY <-->|"Read/Write"| STATE
+    
+    %% Supervisor reads state for decisions
+    STATE -->|"System Statistics"| SUPERVISOR
+    
     %% Styling
     classDef mainAgent fill:#e1f5fe,stroke:#01579b,stroke-width:3px
     classDef researchAgent fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef supportAgent fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef errorAgent fill:#ffebee,stroke:#b71c1c,stroke-width:2px
     classDef stateAgent fill:#fff3e0,stroke:#e65100,stroke-width:2px
-
+    
     class FRAMEWORK,SUPERVISOR mainAgent
     class LIT_REVIEW,GENERATION,REFLECTION,EVOLUTION,META_REVIEW,FINAL_REPORT researchAgent
-    class TOURNAMENT,PROXIMITY,CONFIG supportAgent
-    class VALIDATION,ROBUST_PARSING,CONFIG_VALIDATION errorAgent
-    class STATE,PERSISTENCE stateAgent
+    class TOURNAMENT,PROXIMITY supportAgent
+    class STATE stateAgent
 ```
 
-## Agent Communication Patterns
+## Functional Agent Flow
 
-### 🔄 **Communication Architecture**
+### 🔄 **Research Process Flow**
 
-**1. Centralized State Management**
-- **Single Source of Truth**: `CoscientistStateManager` coordinates all agent communication
-- **No Direct Agent-to-Agent Communication**: Agents only communicate through shared state
-- **State Persistence**: Auto-save checkpoints after every operation
+**1. Initialization**
+- User provides research goal
+- Framework initializes global state manager
+- Supervisor agent begins strategic planning
 
-**2. Supervisor-Driven Orchestration**
-- **Strategic Decision Making**: Supervisor analyzes system state and decides next action
-- **Action Execution**: Framework executes supervisor decisions sequentially
-- **Iteration Control**: Maximum 20 iterations to prevent infinite loops
+**2. Literature Review Phase**
+- Literature Review Agent conducts systematic analysis
+- Uses GPT Researcher for comprehensive literature search
+- Results stored in global state for other agents
 
-**3. Agent Categories**
+**3. Hypothesis Generation Phase**
+- Generation Agents create novel hypotheses
+- Two modes: Independent (single agent) or Collaborative (multiple agents)
+- Generated hypotheses added to state for evaluation
 
-#### 🎯 **Main Agents (Orchestration)**
-- **Supervisor Agent**: Strategic decision maker, analyzes state, chooses next action
-- **Framework**: Main controller, executes supervisor decisions
+**4. Hypothesis Evaluation Phase**
+- Reflection Agents perform deep verification
+- ELO Tournament ranks hypotheses through competitive analysis
+- Proximity Graph tracks semantic relationships
 
-#### 📚 **Research Agents (Core Work)**
-- **Literature Review Agent**: Uses GPT Researcher for systematic literature analysis
-- **Generation Agents**: Create hypotheses (Independent/Collaborative modes)
-- **Reflection Agents**: Deep verification and causal reasoning
-- **Evolution Agents**: Refine hypotheses based on feedback
-- **Meta-Review Agent**: Synthesize insights across research directions
-- **Final Report Agent**: Generate comprehensive summaries
+**5. Hypothesis Evolution Phase**
+- Evolution Agents refine hypotheses based on feedback
+- Two strategies: Evolve from feedback or Out-of-the-box thinking
+- Improved hypotheses replace original ones in state
 
-#### 🛠️ **Supporting Agents (Tools)**
-- **ELO Tournament**: Rank hypotheses through competitive analysis
-- **Proximity Graph**: Track semantic relationships between hypotheses
-- **Configuration Agent**: System setup and parameter configuration
+**6. Meta-Analysis Phase**
+- Meta-Review Agent synthesizes insights across all research directions
+- Analyzes patterns, strengths, and weaknesses
+- Provides strategic guidance for next iteration
+
+**7. Final Report Phase**
+- Final Report Agent generates comprehensive research summary
+- Synthesizes all findings into coherent report
+- Research process complete
+
+### 🎯 **Agent Roles & Responsibilities**
+
+#### **Orchestration Layer**
+- **Supervisor Agent**: Analyzes system state, decides next research action
+- **Framework**: Executes supervisor decisions, coordinates agent execution
+
+#### **Research Layer**
+- **Literature Review Agent**: Systematic literature analysis and research foundation
+- **Generation Agents**: Create novel scientific hypotheses using various reasoning approaches
+- **Reflection Agents**: Deep verification and causal reasoning analysis
+- **Evolution Agents**: Refine and improve hypotheses based on feedback
+- **Meta-Review Agent**: Synthesize insights across multiple research directions
+- **Final Report Agent**: Generate comprehensive research summaries
+
+#### **Supporting Layer**
+- **ELO Tournament**: Rank hypotheses through head-to-head competitive analysis
+- **Proximity Graph**: Track semantic relationships and hypothesis clustering
 
 ### ⚠️ **Error Handling & Resilience**
 
