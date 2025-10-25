@@ -20,7 +20,7 @@ from typing import TypedDict
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, StateGraph
 
-from coscientist.common import load_prompt
+from coscientist.common import load_prompt, validate_llm_response
 
 
 class SupervisorDecisionState(TypedDict):
@@ -142,6 +142,16 @@ def _supervisor_decision_node(
         ],
     )
 
-    response_content = llm.invoke(prompt).content
+    response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="supervisor_decision",
+        prompt=prompt,
+        context={
+            "goal": state["goal"],
+            "total_actions": state["total_actions"],
+            "total_hypotheses": state["total_hypotheses"]
+        }
+    )
     action, decision_reasoning = _parse_supervisor_response(response_content)
     return {**state, "action": action, "decision_reasoning": decision_reasoning}

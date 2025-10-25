@@ -26,7 +26,7 @@ from typing import Optional  # Add Optional
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from coscientist import multiturn
-from coscientist.common import load_prompt
+from coscientist.common import load_prompt, validate_llm_response
 from coscientist.custom_types import RankingMatchResult, ReviewedHypothesis
 
 # Constants
@@ -175,7 +175,17 @@ class EloTournament:
         # Load and format the prompt
         if prompt_name == "tournament":
             formatted_prompt = load_prompt(prompt_name, **prompt_input)
-            response_text = llm.invoke(formatted_prompt).content
+            response = llm.invoke(formatted_prompt)
+            response_text = validate_llm_response(
+                response=response,
+                agent_name="ranking_tournament",
+                prompt=formatted_prompt,
+                context={
+                    "goal": self.goal,
+                    "hypo1_uid": hypo1.uid,
+                    "hypo2_uid": hypo2.uid
+                }
+            )
         elif prompt_name == "simulated_debate":
             agent = _build_debate_agent(
                 agent_names=["scientist"], llms={"scientist": llm}, max_turns=10

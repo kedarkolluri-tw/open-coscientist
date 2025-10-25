@@ -31,7 +31,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
 
-from coscientist.common import load_prompt
+from coscientist.common import load_prompt, validate_llm_response
 from coscientist.custom_types import ParsedHypothesis, ReviewedHypothesis
 
 
@@ -140,11 +140,17 @@ def desk_reject_node(state: ReflectionState, llm: BaseChatModel) -> ReflectionSt
         "desk_reject", hypothesis=state["hypothesis_to_review"].hypothesis
     )
     response = llm.invoke(prompt)
-    passed = "pass" in response.content.split("FINAL EVALUATION:")[-1].lower()
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="reflection_desk_reject",
+        prompt=prompt,
+        context={"hypothesis_uid": state["hypothesis_to_review"].uid}
+    )
+    passed = "pass" in response_content.split("FINAL EVALUATION:")[-1].lower()
 
     return {
         "passed_initial_filter": passed,
-        "initial_filter_assessment": response.content,
+        "initial_filter_assessment": response_content,
     }
 
 
@@ -170,8 +176,14 @@ def hypothesis_simulation_node(
         "cause_and_effect", hypothesis=state["hypothesis_to_review"].hypothesis
     )
     response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="reflection_hypothesis_simulation",
+        prompt=prompt,
+        context={"hypothesis_uid": state["hypothesis_to_review"].uid}
+    )
 
-    return {"_causal_reasoning": response.content}
+    return {"_causal_reasoning": response_content}
 
 
 def assumption_decomposer_node(
@@ -198,12 +210,18 @@ def assumption_decomposer_node(
         assumptions="\n".join(state["hypothesis_to_review"].assumptions),
     )
     response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="reflection_assumption_decomposer",
+        prompt=prompt,
+        context={"hypothesis_uid": state["hypothesis_to_review"].uid}
+    )
 
     # Parse the assumptions into structured format
-    parsed_assumptions = parse_assumption_decomposition(response.content)
+    parsed_assumptions = parse_assumption_decomposition(response_content)
 
     return {
-        "_refined_assumptions": response.content,
+        "_refined_assumptions": response_content,
         "_parsed_assumptions": parsed_assumptions,
     }
 
@@ -247,6 +265,12 @@ def deep_verification_node(
         assumption_research=assumption_research,
     )
     response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="reflection_deep_verification",
+        prompt=prompt,
+        context={"hypothesis_uid": state["hypothesis_to_review"].uid}
+    )
 
     # Create a ReviewedHypothesis instance
     reviewed_hypothesis = ReviewedHypothesis(
@@ -257,7 +281,7 @@ def deep_verification_node(
         parent_uid=state["hypothesis_to_review"].parent_uid,
         causal_reasoning=state["_causal_reasoning"],
         assumption_research_results=state["_assumption_research_results"],
-        verification_result=response.content,
+        verification_result=response_content,
     )
 
     return {

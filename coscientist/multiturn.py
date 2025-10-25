@@ -3,7 +3,7 @@ from typing import Any, Callable, Optional, Type, TypedDict
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, StateGraph
 
-from coscientist.common import load_prompt
+from coscientist.common import load_prompt, validate_llm_response
 
 
 class MultiTurnState(TypedDict):
@@ -41,9 +41,22 @@ def create_agent_node_fn(
 
         # Generate response
         prompt = load_prompt(prompt_name, **prompt_kwargs)
-        response = llm.invoke(prompt).content
+        llm_response = llm.invoke(prompt)
 
-        return {**state, "transcript": state["transcript"] + [(agent_name, response)]}
+        # Validate response with catastrophic failure on empty
+        validated_content = validate_llm_response(
+            response=llm_response,
+            agent_name=f"multiturn_{agent_name}_{prompt_name}",
+            prompt=prompt,
+            context={
+                "agent_name": agent_name,
+                "prompt_name": prompt_name,
+                "turn": state.get("turn", 0),
+                "transcript_length": len(state.get("transcript", []))
+            }
+        )
+
+        return {**state, "transcript": state["transcript"] + [(agent_name, validated_content)]}
 
     return agent_fn
 

@@ -1,0 +1,45 @@
+[project]
+name = "open-coscientist-agents"
+version = "0.0.1"
+description = "Implementation of multi-agent system for AI co-scientist"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "langchain>=0.3.25,<1.0",
+    "langchain-community>=0.3.24",
+    "langgraph>=0.4.7",
+    "typing-extensions>=4.5.0",
+    "ipython>=8.0.0",
+    "gpt-researcher @ git+https://github.com/assafelovic/gpt-researcher@v.3.3.6",
+    "langchain-core>=0.3.65",
+    "langchain-openai>=0.3.18",
+    "langchain-anthropic>=0.3.15",
+    "langchain-google-genai>=2.1.5",
+    "networkx>=3.5",
+    "scikit-learn>=1.7.0",
+    "jinja2>=3.1.2",
+    "pip>=25.2",
+    "arize-phoenix>=4.0.0",
+    "openinference-instrumentation-langchain>=0.1.0",
+    "streamlit>=1.50.0",
+    "st-cytoscape>=0.0.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.0.1",
+    "pre-commit>=3.0.0",
+]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+viewer = [
+    "streamlit>=1.46.1",
+    "st-cytoscape>=0.0.5",
+]

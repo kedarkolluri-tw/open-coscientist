@@ -12,7 +12,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, StateGraph
 
 from coscientist import multiturn
-from coscientist.common import load_prompt, parse_hypothesis_markdown
+from coscientist.common import load_prompt, parse_hypothesis_markdown, parse_hypothesis_with_llm, validate_llm_response
 from coscientist.custom_types import ParsedHypothesis
 from coscientist.reasoning_types import ReasoningType
 
@@ -104,8 +104,15 @@ def _independent_generation_node(
     Represents the action of a single generation agent using the independent_generation.md template.
     The output is expected to be markdown with sections: Evidence, Hypothesis, Reasoning, Assumptions Table.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     # Handle meta_review field with fallback
     meta_review = state.get("meta_review", "Not Available")
+
+    logger.info(f"Generation node: field={field}, reasoning={reasoning_type}")
+    logger.info(f"Goal: {state.get('goal', 'MISSING')[:100]}")
+    logger.info(f"Lit review length: {len(state.get('literature_review', ''))}")
 
     prompt = load_prompt(
         "independent_generation",
@@ -115,7 +122,23 @@ def _independent_generation_node(
         meta_review=meta_review,
         reasoning_type=reasoning_type.value,
     )
-    response_content = llm.invoke(prompt).content
+    logger.info(f"Prompt length: {len(prompt) if isinstance(prompt, str) else len(str(prompt))}")
+
+    response = llm.invoke(prompt)
+
+    # Use shared validation function
+    response_content = validate_llm_response(
+        response=response,
+        agent_name=f"generation_{field}_{reasoning_type}",
+        prompt=prompt,
+        context={
+            "goal": state.get("goal", "MISSING"),
+            "field": field,
+            "reasoning_type": str(reasoning_type),
+            "literature_review_length": len(state.get("literature_review", ""))
+        }
+    )
+
     return {**state, "_raw_result": response_content}
 
 
@@ -153,7 +176,14 @@ def _build_independent_generation_agent(
         "generator",
         lambda state: _independent_generation_node(state, field, reasoning_type, llm),
     )
-    graph.add_node("parser", _parsing_node)
+    # Use robust LLM-based parsing instead of brittle regex
+    graph.add_node(
+        "parser",
+        lambda state: {
+            **state,
+            "hypothesis": parse_hypothesis_with_llm(llm, state["_raw_result"])
+        }
+    )
 
     graph.add_edge("generator", "parser")
     graph.add_edge("parser", END)
@@ -208,8 +238,18 @@ def _build_collaborative_generation_agent(
     # Add moderator node
     base_graph.add_node("moderator", moderator_fn)
 
-    # Add our custom parsing node
-    base_graph.add_node("parser", _collaborative_parsing_node)
+    # Add robust LLM-based parsing node (use first agent's LLM for parsing)
+    parsing_llm = llms[agent_names[0]]
+    base_graph.add_node(
+        "parser",
+        lambda state: {
+            **state,
+            "hypothesis": parse_hypothesis_with_llm(
+                parsing_llm,
+                "\n".join([f"{name}: {msg}" for name, msg in state["transcript"]])
+            )
+        }
+    )
 
     # Define edges: agents -> moderator
     for agent_name in agent_node_fns.keys():

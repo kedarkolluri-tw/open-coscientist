@@ -19,7 +19,7 @@ from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from typing_extensions import Annotated
 
-from coscientist.common import load_prompt
+from coscientist.common import load_prompt, validate_llm_response
 
 
 class ConfigurationState(TypedDict):
@@ -106,18 +106,24 @@ def _configuration_node(
     formatted_prompt = prompt_template.invoke(template_input)
 
     response = llm.invoke(formatted_prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="configuration",
+        prompt=str(formatted_prompt),
+        context={"goal": state["goal"]}
+    )
 
     # Check if this is a final goal statement
-    is_complete = "FINAL GOAL:" in response.content
+    is_complete = "FINAL GOAL:" in response_content
     refined_goal = state.get("refined_goal", "")
 
     if is_complete:
         # Extract the final goal
         try:
-            refined_goal = response.content.split("FINAL GOAL:")[1].strip()
+            refined_goal = response_content.split("FINAL GOAL:")[1].strip()
         except IndexError:
             # Fallback if parsing fails
-            refined_goal = response.content
+            refined_goal = response_content
 
     return {
         "messages": [response],

@@ -17,7 +17,7 @@ from gpt_researcher.utils.enum import Tone
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, StateGraph
 
-from coscientist.common import load_prompt
+from coscientist.common import load_prompt, validate_llm_response
 
 
 class LiteratureReviewState(TypedDict):
@@ -63,7 +63,16 @@ def _topic_decomposition_node(
         subtopics=state.get("subtopics", ""),
         meta_review=state.get("meta_review", ""),
     )
-    response_content = llm.invoke(prompt).content
+    response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="literature_review_topic_decomposition",
+        prompt=prompt,
+        context={
+            "goal": state["goal"],
+            "max_subtopics": state["max_subtopics"]
+        }
+    )
 
     # Parse the topics from the markdown response
     subtopics = parse_topic_decomposition(response_content)
@@ -99,14 +108,20 @@ async def _write_subtopic_report(subtopic: str, main_goal: str) -> str:
         report_type="subtopic_report",
         report_format="markdown",
         parent_query=main_goal,
-        verbose=False,
+        verbose=True,
         tone=Tone.Objective,
         config_path=os.path.join(os.path.dirname(__file__), "researcher_config.json"),
     )
 
-    # Conduct research and generate report
-    _ = await researcher.conduct_research()
-    return await researcher.write_report()
+    # Conduct research and generate report with timeout
+    try:
+        _ = await asyncio.wait_for(researcher.conduct_research(), timeout=180.0)
+        report = await asyncio.wait_for(researcher.write_report(), timeout=60.0)
+        return report
+    except asyncio.TimeoutError:
+        return f"# Research Timeout\n\nResearch for subtopic '{subtopic}' timed out. Unable to complete research within time limit."
+    except Exception as e:
+        return f"# Research Error\n\nError researching subtopic '{subtopic}': {str(e)}"
 
 
 async def _parallel_research_node(

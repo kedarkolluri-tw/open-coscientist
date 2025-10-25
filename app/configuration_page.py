@@ -24,7 +24,7 @@ from coscientist.global_state import CoscientistState
 def get_llm_options():
     """Get available LLM options for the chat interface."""
     return {
-        "o3": ChatOpenAI(model="o3", max_tokens=5000, max_retries=3),
+        "GPT-4o-mini": ChatOpenAI(model="gpt-4o-mini", max_tokens=5000, max_retries=3),
         "Gemini 2.5 Pro": ChatGoogleGenerativeAI(
             model="gemini-2.5-pro",
             temperature=1.0,

@@ -1,6 +1,16 @@
 import os
 
 import streamlit as st
+import dotenv
+# Load environment variables before importing anything else
+config_ = dotenv.load_dotenv(dotenv.find_dotenv(".env.test"))
+
+print(config_)
+if not config_:
+    raise ValueError("Could not find env file")
+
+for name, value in os.environ.items():
+    print(f"{name}: {value}")
 
 # Import from modular pages
 from common import (

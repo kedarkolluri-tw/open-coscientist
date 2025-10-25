@@ -24,7 +24,7 @@ from typing import TypedDict
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, StateGraph
 
-from coscientist.common import load_prompt
+from coscientist.common import load_prompt, validate_llm_response
 from coscientist.custom_types import ReviewedHypothesis
 from coscientist.ranking_agent import EloTournament
 
@@ -140,7 +140,13 @@ def _meta_review_node(
         ratings=ratings_text,
         debates=debates_text,
     )
-    response_content = llm.invoke(prompt).content
+    response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="meta_review_tournament",
+        prompt=prompt,
+        context={"goal": state["goal"], "num_hypotheses": len(sorted_hypotheses)}
+    )
     return {**state, "result": response_content}
 
 
@@ -179,5 +185,11 @@ def _top_hypotheses_review_node(
         top_hypotheses=top_hypotheses_text,
         reviews=reviews_text,
     )
-    response_content = llm.invoke(prompt).content
+    response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="meta_review_top_hypotheses",
+        prompt=prompt,
+        context={"goal": state["goal"], "top_k": top_k}
+    )
     return {**state, "result": response_content}

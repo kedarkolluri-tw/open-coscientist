@@ -4,15 +4,17 @@ setups the agents, and organizes the multi-agent system. The framework will be c
 by a supervisor agent.
 """
 
+import asyncio
 import logging
 import math
+import os
 import random
 
 import numpy as np
 from langchain_anthropic import ChatAnthropic
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from coscientist.evolution_agent import build_evolution_agent
@@ -28,34 +30,24 @@ from coscientist.meta_review_agent import build_meta_review_agent
 from coscientist.reasoning_types import ReasoningType
 from coscientist.reflection_agent import build_deep_verification_agent
 from coscientist.supervisor_agent import build_supervisor_agent
+from coscientist.validation import (
+    ValidationError,
+    validate_researcher_config,
+    validate_gpt_researcher_config_sync,
+)
 
-# Generally reasoning models are better suited for the scientific reasoning
-# tasks entailed by the Coscientist system.
-_SMARTER_LLM_POOL = {
-    "o3": ChatOpenAI(model="o3", max_tokens=50_000, max_retries=3),
-    "gemini-2.5-pro": ChatGoogleGenerativeAI(
-        model="gemini-2.5-pro",
-        temperature=1.0,
-        max_retries=3,
-        max_tokens=50_000,
-    ),
-    "claude-sonnet-4-20250514": ChatAnthropic(
-        model="claude-sonnet-4-20250514", max_tokens=50_000, max_retries=3
-    ),
-}
-_CHEAPER_LLM_POOL = {
-    "o4-mini": ChatOpenAI(model="o4-mini", max_tokens=50_000, max_retries=3),
-    "gemini-2.5-flash": ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=1.0,
-        max_retries=3,
-        max_tokens=50_000,
-    ),
-    # Anthropic doesn't have a good cheaper model
-    "claude-sonnet-4-20250514": ChatAnthropic(
-        model="claude-sonnet-4-20250514", max_tokens=50_000, max_retries=3
-    ),
-}
+# Load all LLM configuration from researcher_config.json
+# NO HARDCODED DEFAULTS - config file is the single source of truth
+from coscientist.config_loader import (
+    create_llms_from_config,
+    create_embeddings_from_config,
+    validate_all_config,
+    ConfigurationError
+)
+
+# Load LLMs from config - this will CRASH if config is wrong
+_CONFIG_LLMS = create_llms_from_config()
+_LLM_POOL = _CONFIG_LLMS['pool']  # Dict of unique LLMs by model name
 
 
 class CoscientistConfig:
@@ -89,37 +81,41 @@ class CoscientistConfig:
 
     def __init__(
         self,
-        literature_review_agent_llm: BaseChatModel = _SMARTER_LLM_POOL[
-            "claude-sonnet-4-20250514"
-        ],
-        generation_agent_llms: dict[str, BaseChatModel] = _SMARTER_LLM_POOL,
-        reflection_agent_llms: dict[str, BaseChatModel] = _SMARTER_LLM_POOL,
-        evolution_agent_llms: dict[str, BaseChatModel] = _SMARTER_LLM_POOL,
-        meta_review_agent_llm: BaseChatModel = _CHEAPER_LLM_POOL["gemini-2.5-flash"],
-        supervisor_agent_llm: BaseChatModel = _SMARTER_LLM_POOL[
-            "claude-sonnet-4-20250514"
-        ],
-        final_report_agent_llm: BaseChatModel = _SMARTER_LLM_POOL[
-            "claude-sonnet-4-20250514"
-        ],
-        proximity_agent_embedding_model: Embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small", dimensions=256
-        ),
+        literature_review_agent_llm: BaseChatModel = None,
+        generation_agent_llms: dict[str, BaseChatModel] = None,
+        reflection_agent_llms: dict[str, BaseChatModel] = None,
+        evolution_agent_llms: dict[str, BaseChatModel] = None,
+        meta_review_agent_llm: BaseChatModel = None,
+        supervisor_agent_llm: BaseChatModel = None,
+        final_report_agent_llm: BaseChatModel = None,
+        proximity_agent_embedding_model: Embeddings = None,
         specialist_fields: list[str] | None = None,
     ):
-        # TODO: Add functionality for overriding GPTResearcher config.
-        self.literature_review_agent_llm = literature_review_agent_llm
-        self.generation_agent_llms = generation_agent_llms
-        self.reflection_agent_llms = reflection_agent_llms
-        self.evolution_agent_llms = evolution_agent_llms
-        self.meta_review_agent_llm = meta_review_agent_llm
-        self.supervisor_agent_llm = supervisor_agent_llm
-        self.proximity_agent_embedding_model = proximity_agent_embedding_model
-        self.final_report_agent_llm = final_report_agent_llm
-        if specialist_fields is None:
-            self.specialist_fields = ["biology"]
-        else:
-            self.specialist_fields = specialist_fields
+        """
+        Initialize Coscientist configuration.
+
+        ALL parameters default to None and are loaded from researcher_config.json.
+        Pass explicit values ONLY if you need to override the config.
+        """
+        # Get SMART_LLM from config as default for single-agent tasks
+        default_llm = _CONFIG_LLMS['SMART_LLM']
+
+        # Use config defaults for all LLMs
+        self.literature_review_agent_llm = literature_review_agent_llm or default_llm
+        self.meta_review_agent_llm = meta_review_agent_llm or default_llm
+        self.supervisor_agent_llm = supervisor_agent_llm or default_llm
+        self.final_report_agent_llm = final_report_agent_llm or default_llm
+
+        # For agent pools, use all unique LLMs from config
+        self.generation_agent_llms = generation_agent_llms or _LLM_POOL
+        self.reflection_agent_llms = reflection_agent_llms or _LLM_POOL
+        self.evolution_agent_llms = evolution_agent_llms or _LLM_POOL
+
+        # Load embeddings from config
+        self.proximity_agent_embedding_model = proximity_agent_embedding_model or create_embeddings_from_config()
+
+        # Default fields
+        self.specialist_fields = specialist_fields or ["biology"]
 
 
 class CoscientistFramework:
@@ -132,8 +128,24 @@ class CoscientistFramework:
     def __init__(
         self, config: CoscientistConfig, state_manager: CoscientistStateManager
     ):
+        # CRITICAL: Validate configuration before doing ANY work
+        # This ensures catastrophic failure if configs are wrong
+        self._validate_configuration()
+
         self.config = config
         self.state_manager = state_manager
+
+    def _validate_configuration(self) -> None:
+        """
+        Validate critical configurations at framework initialization.
+
+        Uses the strict validation from config_loader which makes REAL API calls.
+        This will CRASH immediately if anything is wrong.
+
+        NO TRY/EXCEPT - Let errors propagate and kill the process.
+        """
+        # This function makes real API calls and crashes if anything fails
+        validate_all_config()
 
     def list_generation_llm_names(self) -> list[str]:
         """
@@ -213,9 +225,14 @@ class CoscientistFramework:
                 )
                 self.state_manager.advance_reviewed_hypothesis()
 
-    def _generate_new_hypothesis(self) -> None:
+    def _generate_new_hypothesis(self, timeout: float = 300.0) -> None:
         """
         Run the hypothesis generation for a given mode and config.
+
+        Parameters
+        ----------
+        timeout : float
+            Timeout in seconds for hypothesis generation. Default is 300 (5 minutes).
         """
         # TODO: The mode and roles should be selected by the supervisor agent.
         # Randomly pick a mode, a reasoning type, and a specialist field.
@@ -261,10 +278,20 @@ class CoscientistFramework:
         initial_generation_state = self.state_manager.next_generation_state(
             mode, first_agent_name
         )
-        final_generation_state = generation_agent.invoke(initial_generation_state)
-        self.state_manager.add_generated_hypothesis(
-            final_generation_state["hypothesis"]
-        )
+
+        # Note: Since this is a sync method being called from async context,
+        # we can't use asyncio.wait_for here. The timeout should be implemented
+        # in the agent itself or by making this method async.
+        logging.info(f"Starting hypothesis generation with mode: {mode}")
+        try:
+            final_generation_state = generation_agent.invoke(initial_generation_state)
+            self.state_manager.add_generated_hypothesis(
+                final_generation_state["hypothesis"]
+            )
+            logging.info("Hypothesis generation completed successfully")
+        except Exception as e:
+            logging.error(f"Hypothesis generation failed: {e}")
+            raise
 
     async def start(self, n_hypotheses: int = 8) -> None:
         """
@@ -306,13 +333,37 @@ class CoscientistFramework:
         _ = await self.run_tournament(k_bracket=k_bracket)
         _ = await self.run_meta_review(k_bracket=k_bracket)
 
-    async def generate_new_hypotheses(self, n_hypotheses: int = 2) -> None:
+    async def generate_new_hypotheses(
+        self, n_hypotheses: int = 2, timeout_per_hypothesis: float = 300.0
+    ) -> None:
         """
         Generate new hypotheses.
+
+        Parameters
+        ----------
+        n_hypotheses : int
+            Number of hypotheses to generate.
+        timeout_per_hypothesis : float
+            Timeout in seconds for each hypothesis generation. Default is 300 (5 minutes).
         """
-        for _ in range(n_hypotheses):
-            self._generate_new_hypothesis()
-            self.state_manager.advance_hypothesis(kind="generated")
+        for i in range(n_hypotheses):
+            try:
+                logging.info(f"Generating hypothesis {i+1}/{n_hypotheses}")
+                # Run the sync method in an executor with timeout
+                await asyncio.wait_for(
+                    asyncio.to_thread(self._generate_new_hypothesis),
+                    timeout=timeout_per_hypothesis,
+                )
+                self.state_manager.advance_hypothesis(kind="generated")
+            except asyncio.TimeoutError:
+                logging.error(
+                    f"Hypothesis generation {i+1}/{n_hypotheses} timed out after "
+                    f"{timeout_per_hypothesis} seconds. Skipping."
+                )
+            except Exception as e:
+                logging.error(
+                    f"Hypothesis generation {i+1}/{n_hypotheses} failed: {e}. Skipping."
+                )
 
         # Now run through the review queue and perform deep verification
         self.process_reflection_queue()
@@ -442,9 +493,15 @@ class CoscientistFramework:
             "finish",
         ]
 
-    async def run(self) -> tuple[str, str]:
+    async def run(self, max_iterations: int = 20) -> tuple[str, str]:
         """
         Runs the coscientist system until it is finished.
+
+        Parameters
+        ----------
+        max_iterations : int
+            Maximum number of supervisor iterations to prevent infinite loops.
+            Default is 20.
         """
         # Start off with 4 hypotheses
         if not self.state_manager.is_started:
@@ -453,15 +510,27 @@ class CoscientistFramework:
         supervisor_agent = build_supervisor_agent(self.config.supervisor_agent_llm)
 
         current_action = None
-        while not self.state_manager.is_finished:
+        iteration = 0
+        while not self.state_manager.is_finished and iteration < max_iterations:
+            iteration += 1
+            logging.info(f"Supervisor iteration {iteration}/{max_iterations}")
+
             initial_supervisor_state = self.state_manager.next_supervisor_state()
             final_supervisor_state = supervisor_agent.invoke(initial_supervisor_state)
             current_action = final_supervisor_state["action"]
+            logging.info(f"Supervisor decided action: {current_action}")
+
             assert (
                 current_action in self.available_actions()
             ), f"Invalid action: {current_action}. Available actions: {self.available_actions()}"
             self.state_manager.update_supervisor_decision(final_supervisor_state)
             self.state_manager.add_action(current_action)
             _ = await getattr(self, current_action)()
+
+        if iteration >= max_iterations:
+            logging.warning(
+                f"Reached maximum iterations ({max_iterations}). "
+                f"System may not have fully completed."
+            )
 
         return self.state_manager.final_report, self.state_manager.meta_reviews[-1]

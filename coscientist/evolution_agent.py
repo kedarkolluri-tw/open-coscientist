@@ -23,7 +23,7 @@ from typing import TypedDict
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, StateGraph
 
-from coscientist.common import load_prompt, parse_hypothesis_markdown
+from coscientist.common import load_prompt, parse_hypothesis_markdown, parse_hypothesis_with_llm, validate_llm_response
 from coscientist.custom_types import ParsedHypothesis, ReviewedHypothesis
 
 
@@ -97,8 +97,18 @@ def _evolve_from_feedback_node(
         review=state["parent_hypothesis"].verification_result,
         meta_review=state["meta_review"],
     )
-    response_content = llm.invoke(prompt).content
-    parsed_hypothesis = parse_hypothesis_markdown(response_content)
+    response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="evolution_evolve_from_feedback",
+        prompt=prompt,
+        context={
+            "goal": state["goal"],
+            "parent_hypothesis_uid": state["parent_hypothesis"].uid
+        }
+    )
+    # Use robust LLM-based parsing
+    parsed_hypothesis = parse_hypothesis_with_llm(llm, response_content)
     parsed_hypothesis.parent_uid = state["parent_hypothesis"].uid
     return {**state, "evolved_hypothesis": parsed_hypothesis}
 
@@ -123,8 +133,18 @@ def _out_of_the_box_node(
         goal=state["goal"],
         hypotheses=hypotheses_text,
     )
-    response_content = llm.invoke(prompt).content
-    parsed_hypothesis = parse_hypothesis_markdown(response_content)
+    response = llm.invoke(prompt)
+    response_content = validate_llm_response(
+        response=response,
+        agent_name="evolution_out_of_the_box",
+        prompt=prompt,
+        context={
+            "goal": state["goal"],
+            "num_hypotheses": len(state["top_hypotheses"])
+        }
+    )
+    # Use robust LLM-based parsing
+    parsed_hypothesis = parse_hypothesis_with_llm(llm, response_content)
     return {**state, "evolved_hypothesis": parsed_hypothesis}
 
 
