@@ -31,15 +31,14 @@ graph TB
     FRAMEWORK --> STATE
     FRAMEWORK --> SUPERVISOR
     
-    %% Supervisor Decision Loop
-    SUPERVISOR -->|"Analyzes State<br/>Decides Next Action"| FRAMEWORK
-    FRAMEWORK -->|"Execute Action"| LIT_REVIEW
-    FRAMEWORK -->|"Execute Action"| GENERATION
-    FRAMEWORK -->|"Execute Action"| REFLECTION
-    FRAMEWORK -->|"Execute Action"| EVOLUTION
-    FRAMEWORK -->|"Execute Action"| TOURNAMENT
-    FRAMEWORK -->|"Execute Action"| META_REVIEW
-    FRAMEWORK -->|"Execute Action"| FINAL_REPORT
+    %% Hardcoded Workflow Execution
+    SUPERVISOR -->|"Chooses from 6<br/>Hardcoded Actions"| FRAMEWORK
+    FRAMEWORK -->|"Static Method Call<br/>generate_new_hypotheses()"| GENERATION
+    FRAMEWORK -->|"Static Method Call<br/>evolve_hypotheses()"| EVOLUTION
+    FRAMEWORK -->|"Static Method Call<br/>run_tournament()"| TOURNAMENT
+    FRAMEWORK -->|"Static Method Call<br/>run_meta_review()"| META_REVIEW
+    FRAMEWORK -->|"Static Method Call<br/>expand_literature_review()"| LIT_REVIEW
+    FRAMEWORK -->|"Static Method Call<br/>finish()"| FINAL_REPORT
     
     %% State Communication (All agents read/write to state)
     LIT_REVIEW <-->|"Read/Write"| STATE
@@ -68,7 +67,17 @@ graph TB
 
 ## Functional Agent Flow
 
-### 🔄 **Research Process Flow**
+### ⚠️ **CRITICAL LIMITATION: Hardcoded Workflow**
+
+**The supervisor agent does NOT dynamically orchestrate other agents. Instead:**
+- **Supervisor chooses from 6 hardcoded actions**: `generate_new_hypotheses`, `evolve_hypotheses`, `run_tournament`, `run_meta_review`, `expand_literature_review`, `finish`
+- **Framework executes using static method calls**: `await getattr(self, action)()`
+- **No dynamic workflow creation**: Cannot create custom workflows or agent compositions
+- **No adaptive strategies**: Always follows same execution patterns regardless of context
+
+**This explains why no successful reports have been generated - the system lacks true multi-agent orchestration.**
+
+### 🔄 **Research Process Flow (Hardcoded)**
 
 **1. Initialization**
 - User provides research goal
