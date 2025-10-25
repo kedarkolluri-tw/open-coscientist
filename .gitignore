@@ -145,7 +145,12 @@ Pipfile.lock
 secrets.json
 config.local.json
 
-# Documentation drafts
+# Documentation drafts (but keep agents/ directory)
 *_draft.md
-refactor_plan*.md
 ROBUST_PARSING_ARCHITECTURE.md
+
+# Keep agents/ directory but ignore temporary planning files
+agents/*_temp.md
+agents/*_draft.md
+agents/refactor_plan*.md
+agents/*_notes.md
