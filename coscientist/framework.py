@@ -348,7 +348,12 @@ class CoscientistFramework:
         # Run the EloTournament
         # The top k for the bracket should the nearest power of
         # 2 less than the number of hypotheses and no more than 16.
-        k_bracket = min(16, 2 ** math.floor(math.log2(n_hypotheses)))
+        total_hypotheses = self.state_manager.total_hypotheses
+        if total_hypotheses == 0:
+            logging.warning("No hypotheses generated, skipping tournament")
+            return
+        
+        k_bracket = min(16, 2 ** math.floor(math.log2(total_hypotheses)))
         # TODO: Figure out the right LLM for this job; should it be different from meta-review?
         # Feels like it should be fixed for the sake of consistency though
         _ = await self.run_tournament(k_bracket=k_bracket)
