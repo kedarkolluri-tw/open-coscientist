@@ -140,45 +140,57 @@ async def _write_subtopic_report(subtopic: str, main_goal: str, output_dir: str 
 
 async def _parallel_research_node(
     state: LiteratureReviewState,
+    framework=None
 ) -> LiteratureReviewState:
     """
-    Node that conducts parallel research for all subtopics using GPTResearcher.
+    Node that conducts parallel research for all subtopics using configured backend.
     """
+    from coscientist.progress_events import phase_start, phase_complete, task_start, task_complete
+    
     subtopics = state["subtopics"]
     main_goal = state["goal"]
-
-    # Create research tasks for all subtopics  
-    # Wrap coroutines in Task objects so we can cancel them if needed
-    research_tasks = [asyncio.create_task(_write_subtopic_report(topic, main_goal)) for topic in subtopics]
-
-    # Execute all research tasks in parallel with hard timeout
-    # IMPORTANT: If this times out, cancel all tasks to prevent background hangs
+    
+    # Get output directory for progress tracking
+    output_dir = "."
+    if framework and hasattr(framework, 'state_manager'):
+        output_dir = framework.state_manager._state._output_dir
+    
+    # Log phase start
+    phase_start("literature_review", f"Researching {len(subtopics)} subtopics", output_dir)
+    
+    # Create research tasks
+    research_tasks = []
+    for i, topic in enumerate(subtopics):
+        task_id = f"subtopic_{i+1}"
+        task_start("literature_review", task_id, topic, output_dir)
+        research_tasks.append(_write_subtopic_report(topic, main_goal, output_dir))
+    
+    # Execute all research tasks in parallel
     try:
-        subtopic_reports = await asyncio.wait_for(
-            asyncio.gather(*research_tasks, return_exceptions=True),
-            timeout=900.0  # 15 minutes hard deadline for all research
-        )
-        # Filter out exceptions and use timeout messages
+        subtopic_reports = await asyncio.gather(*research_tasks, return_exceptions=True)
+        
+        # Log completion
+        for i, (topic, report) in enumerate(zip(subtopics, subtopic_reports)):
+            task_id = f"subtopic_{i+1}"
+            progress = int((i+1)/len(subtopics)*100)
+            task_complete("literature_review", task_id, "Complete", output_dir, progress=progress)
+        
+        # Filter out exceptions
         subtopic_reports = [
             report if not isinstance(report, Exception) 
             else f"# Research Error\n\nError: {str(report)}"
             for report in subtopic_reports
         ]
-    except asyncio.TimeoutError:
-        # Cancel all pending tasks to prevent background hangs
-        logging.warning(f"Literature review timed out after 900s. Cancelling all research tasks.")
-        for task in research_tasks:
-            if not task.done():
-                task.cancel()
-        # Wait for cancellations to propagate
-        await asyncio.gather(*research_tasks, return_exceptions=True)
         
+        phase_complete("literature_review", f"All {len(subtopics)} subtopics researched", output_dir)
+        
+    except Exception as e:
+        logging.error(f"Parallel research failed: {e}")
         subtopic_reports = [
-            f"# Research Timeout\n\nResearch for subtopic '{topic}' timed out after 15 minutes. Web scraping was taking too long."
+            f"# Research Error\n\nError researching subtopic '{topic}': {str(e)}"
             for topic in subtopics
         ]
-    except Exception as e:
-        raise RuntimeError(f"Failed to conduct research for subtopics: {str(e)}")
+        phase_complete("literature_review", f"Failed: {str(e)}", output_dir)
 
     if state.get("subtopic_reports", False):
         subtopic_reports = state["subtopic_reports"] + subtopic_reports
@@ -186,7 +198,7 @@ async def _parallel_research_node(
     return {"subtopic_reports": subtopic_reports}
 
 
-def build_literature_review_agent(llm: BaseChatModel) -> StateGraph:
+def build_literature_review_agent(llm: BaseChatModel, framework=None) -> StateGraph:
     """
     Builds and configures a LangGraph for literature review.
 
@@ -194,6 +206,8 @@ def build_literature_review_agent(llm: BaseChatModel) -> StateGraph:
     ----------
     llm : BaseChatModel
         The language model to use for topic decomposition and executive summary.
+    framework : CoscientistFramework, optional
+        Framework instance for access to research provider
 
     Returns
     -------
@@ -210,7 +224,7 @@ def build_literature_review_agent(llm: BaseChatModel) -> StateGraph:
 
     graph.add_node(
         "parallel_research",
-        _parallel_research_node,
+        lambda state: _parallel_research_node(state, framework),
     )
 
     graph.add_edge("topic_decomposition", "parallel_research")

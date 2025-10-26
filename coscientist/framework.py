@@ -322,7 +322,8 @@ class CoscientistFramework:
         # Perform the initial literature review.
         if not self.state_manager.has_literature_review:
             literature_review_agent = build_literature_review_agent(
-                self.config.literature_review_agent_llm
+                self.config.literature_review_agent_llm,
+                framework=self  # Pass framework for research provider access
             )
             initial_lit_review_state = self.state_manager.next_literature_review_state(
                 # TODO: Make this configurable
