@@ -50,7 +50,7 @@ async def quick_test():
     MAX_SUBTOPICS = 2           # Number of subtopics for literature review
     MAX_ITERATIONS = 5          # Max supervisor iterations (default: 20)
     TIMEOUT_PER_HYPOTHESIS = 300  # Timeout per hypothesis in seconds
-    MAX_TURNS = 10             # Max turns for collaborative generation
+    MAX_TURNS = 4              # Max turns for collaborative generation
     # ============================================================================
     
     # Create a test goal
@@ -78,8 +78,10 @@ async def quick_test():
     
     # Initialize state
     print("1️⃣  Initializing state...")
-    initial_state = CoscientistState(goal=goal, directory_name=test_dir)
+    initial_state = CoscientistState(goal=goal)
     state_manager = CoscientistStateManager(initial_state)
+    print("✅ State initialized")
+    print()
     
     # Initialize framework (this should create research provider)
     print("2️⃣  Initializing framework with research backend...")
@@ -102,7 +104,6 @@ async def quick_test():
     print(f"✅ Progress tracker: initialized")
     print()
     
-    # Run framework.start() with n_hypotheses=2 for quick test
     print("3️⃣  Starting framework with literature review + 2 hypotheses...")
     print("   This will:")
     print("   - Run literature review (2 subtopics)")
@@ -166,15 +167,7 @@ if __name__ == "__main__":
     print("⚠️  This test will make real API calls (OpenAI Deep Research)")
     print("   Cost estimate: ~$10-20 for 2 research queries")
     print()
-    print("   Requirements:")
-    print("   - OPENAI_API_KEY environment variable")
-    print("   - Or switch to 'gpt_researcher' in researcher_config.json")
-    print()
     
-    response = input("Continue? (yes/no): ")
-    
-    if response.lower() == "yes":
-        asyncio.run(quick_test())
-    else:
-        print("Test cancelled.")
+    # Just run it - user knows what they're doing
+    asyncio.run(quick_test())
 

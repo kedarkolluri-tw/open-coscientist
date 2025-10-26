@@ -476,9 +476,14 @@ class CoscientistFramework:
         self.state_manager.update_literature_review(final_lit_review_state)
 
     async def run_tournament(self, k_bracket: int = 8) -> None:
+        num_hypotheses = self.state_manager.num_tournament_hypotheses
+        if num_hypotheses == 0:
+            logging.warning("No hypotheses available for tournament")
+            return
+        
         k_bracket = min(
             k_bracket,
-            2 ** math.floor(math.log2(self.state_manager.num_tournament_hypotheses)),
+            2 ** math.floor(math.log2(num_hypotheses)),
         )
         self.state_manager.run_tournament(
             llm=self.config.meta_review_agent_llm, k_bracket=k_bracket
