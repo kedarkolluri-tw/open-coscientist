@@ -307,10 +307,17 @@ class CoscientistFramework:
             logging.error(f"Hypothesis generation failed: {e}")
             raise
 
-    async def start(self, n_hypotheses: int = 8) -> None:
+    async def start(self, n_hypotheses: int = 8, max_subtopics: int = 5) -> None:
         """
         Starts the Coscientist system with a fixed number of initial
         hypotheses.
+        
+        Parameters
+        ----------
+        n_hypotheses : int
+            Number of hypotheses to generate (default: 8)
+        max_subtopics : int
+            Number of subtopics for literature review (default: 5)
         """
         assert n_hypotheses >= 2, "Must generate at least two hypotheses to start"
         if self.state_manager.is_started:
@@ -326,8 +333,7 @@ class CoscientistFramework:
                 framework=self  # Pass framework for research provider access
             )
             initial_lit_review_state = self.state_manager.next_literature_review_state(
-                # TODO: Make this configurable
-                max_subtopics=5
+                max_subtopics=max_subtopics  # Now configurable
             )
             final_lit_review_state = await literature_review_agent.ainvoke(
                 initial_lit_review_state
