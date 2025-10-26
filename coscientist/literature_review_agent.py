@@ -19,6 +19,8 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, StateGraph
 
 from coscientist.common import load_prompt, validate_llm_response
+from coscientist.research_backend import create_research_provider
+from coscientist.config_loader import load_researcher_config
 
 
 class LiteratureReviewState(TypedDict):
@@ -87,9 +89,9 @@ def _topic_decomposition_node(
     return {"subtopics": subtopics}
 
 
-async def _write_subtopic_report(subtopic: str, main_goal: str) -> str:
+async def _write_subtopic_report(subtopic: str, main_goal: str, output_dir: str = None) -> str:
     """
-    Conduct research for a single subtopic using GPTResearcher.
+    Conduct research for a single subtopic using configurable backend.
 
     Parameters
     ----------
@@ -97,31 +99,42 @@ async def _write_subtopic_report(subtopic: str, main_goal: str) -> str:
         The subtopic to research
     main_goal : str
         The main research goal for context
+    output_dir : str, optional
+        Output directory for progress logging
 
     Returns
     -------
     str
         The research report
     """
-    # Create a focused query combining the research focus and key terms
-    researcher = GPTResearcher(
-        query=subtopic,
-        report_type="subtopic_report",
-        report_format="markdown",
-        parent_query=main_goal,
-        verbose=True,
-        tone=Tone.Objective,
-        config_path=os.path.join(os.path.dirname(__file__), "researcher_config.json"),
-    )
-
-    # Conduct research and generate report with timeout
+    # Load configuration and create research provider
+    config = load_researcher_config()
+    provider = create_research_provider(config, output_dir or ".")
+    
+    # Create query combining subtopic and main goal
+    query = f"Research: {subtopic}\n\nContext: {main_goal}"
+    task_id = f"lit_review_{hash(subtopic)}"
+    
     try:
-        _ = await asyncio.wait_for(researcher.conduct_research(), timeout=180.0)
-        report = await asyncio.wait_for(researcher.write_report(), timeout=60.0)
-        return report
+        if provider.supports_background_mode():
+            # Start background research
+            response_id = await provider.conduct_research(query, task_id)
+            
+            # Poll for completion
+            polling_interval = config.get("OPENAI_DEEP_RESEARCH_POLLING_INTERVAL", 30)
+            while True:
+                result = await provider.get_result(task_id)
+                if result:
+                    return result
+                await asyncio.sleep(polling_interval)
+        else:
+            # Blocking mode (GPT-Researcher or Perplexity)
+            return await provider.conduct_research(query, task_id)
+            
     except asyncio.TimeoutError:
-        return f"# Research Timeout\n\nResearch for subtopic '{subtopic}' timed out after 180 seconds. Web scraping is taking too long."
+        return f"# Research Timeout\n\nResearch for subtopic '{subtopic}' timed out."
     except Exception as e:
+        logging.error(f"Research failed for subtopic '{subtopic}': {e}")
         return f"# Research Error\n\nError researching subtopic '{subtopic}': {str(e)}"
 
 
