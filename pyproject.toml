@@ -29,6 +29,7 @@ dependencies = [
 [project.scripts]
 coscientist-interact = "coscientist.interact.tournament_viewer:main"
 coscientist-monitor = "coscientist.cli.monitor_progress:main"
+coscientist-live = "coscientist.cli.live_monitor:main"
 coscientist-list = "coscientist.cli.list_research_goals:main"
 coscientist-status = "coscientist.cli.status:main"
 
