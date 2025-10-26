@@ -435,15 +435,8 @@ async def _write_assumption_research_report(assumption_evaluation_query: str) ->
 
     # Conduct research and generate report with timeout
     try:
-        loop = asyncio.get_event_loop()
-        _ = await asyncio.wait_for(
-            loop.run_in_executor(None, lambda: researcher.conduct_research()),
-            timeout=180.0
-        )
-        report = await asyncio.wait_for(
-            loop.run_in_executor(None, lambda: researcher.write_report()),
-            timeout=60.0
-        )
+        _ = await asyncio.wait_for(researcher.conduct_research(), timeout=180.0)
+        report = await asyncio.wait_for(researcher.write_report(), timeout=60.0)
         return report
     except asyncio.TimeoutError:
         return f"# Research Timeout\n\nResearch timed out after 180 seconds. Web scraping is taking too long."
@@ -474,8 +467,11 @@ def _parallel_assumption_research_node(
             task = _write_assumption_research_report(query)
             research_tasks.append(task)
 
-        # Execute all research tasks in parallel
-        return await asyncio.gather(*research_tasks)
+        # Execute all research tasks in parallel with hard timeout
+        return await asyncio.wait_for(
+            asyncio.gather(*research_tasks, return_exceptions=True),
+            timeout=900.0  # 15 minutes hard deadline
+        )
 
     # Run the async operations synchronously
     try:

@@ -114,18 +114,9 @@ async def _write_subtopic_report(subtopic: str, main_goal: str) -> str:
     )
 
     # Conduct research and generate report with timeout
-    # Note: These are sync functions but running in async context
     try:
-        # Run in executor to properly handle timeouts
-        loop = asyncio.get_event_loop()
-        _ = await asyncio.wait_for(
-            loop.run_in_executor(None, lambda: researcher.conduct_research()),
-            timeout=180.0
-        )
-        report = await asyncio.wait_for(
-            loop.run_in_executor(None, lambda: researcher.write_report()),
-            timeout=60.0
-        )
+        _ = await asyncio.wait_for(researcher.conduct_research(), timeout=180.0)
+        report = await asyncio.wait_for(researcher.write_report(), timeout=60.0)
         return report
     except asyncio.TimeoutError:
         return f"# Research Timeout\n\nResearch for subtopic '{subtopic}' timed out after 180 seconds. Web scraping is taking too long."
@@ -145,9 +136,24 @@ async def _parallel_research_node(
     # Create research tasks for all subtopics
     research_tasks = [_write_subtopic_report(topic, main_goal) for topic in subtopics]
 
-    # Execute all research tasks in parallel
+    # Execute all research tasks in parallel with hard timeout
+    # Each task has 180s timeout, so 5 subtopics * 180s = 900s max
     try:
-        subtopic_reports = await asyncio.gather(*research_tasks)
+        subtopic_reports = await asyncio.wait_for(
+            asyncio.gather(*research_tasks, return_exceptions=True),
+            timeout=900.0  # 15 minutes hard deadline for all research
+        )
+        # Filter out exceptions and use timeout messages
+        subtopic_reports = [
+            report if not isinstance(report, Exception) 
+            else f"# Research Error\n\nError: {str(report)}"
+            for report in subtopic_reports
+        ]
+    except asyncio.TimeoutError:
+        subtopic_reports = [
+            f"# Research Timeout\n\nResearch for subtopic '{topic}' timed out after 15 minutes."
+            for topic in subtopics
+        ]
     except Exception as e:
         raise RuntimeError(f"Failed to conduct research for subtopics: {str(e)}")
 
