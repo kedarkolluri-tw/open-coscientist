@@ -140,10 +140,12 @@ class CoscientistFramework:
         # This will be used by ALL agents (literature_review, reflection, etc.)
         from coscientist.research_backend import create_research_provider
         from coscientist.config_loader import load_researcher_config
+        from coscientist.progress_events import ProgressTracker
         
         research_config = load_researcher_config()
         output_dir = state_manager._state._output_dir
         self.research_provider = create_research_provider(research_config, output_dir)
+        self.progress_tracker = ProgressTracker(output_dir)
         
         logging.info(f"Research provider initialized: {research_config.get('RESEARCH_BACKEND', 'openai_deep_research')}")
 
