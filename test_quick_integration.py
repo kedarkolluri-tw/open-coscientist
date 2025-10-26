@@ -43,8 +43,18 @@ async def quick_test():
     print("=" * 80)
     print()
     
+    # ============================================================================
+    # HYPERPARAMETERS - MODIFY THESE TO CONTROL TEST BEHAVIOR
+    # ============================================================================
+    N_HYPOTHESES = 2           # Number of hypotheses to generate
+    MAX_SUBTOPICS = 2           # Number of subtopics for literature review
+    MAX_ITERATIONS = 5          # Max supervisor iterations (default: 20)
+    TIMEOUT_PER_HYPOTHESIS = 300  # Timeout per hypothesis in seconds
+    MAX_TURNS = 10             # Max turns for collaborative generation
+    # ============================================================================
+    
     # Create a test goal
-    goal = "Quick test: What is CRISPR gene editing? (2 subtopics, 2 hypotheses)"
+    goal = f"Quick test: What is CRISPR gene editing? ({MAX_SUBTOPICS} subtopics, {N_HYPOTHESES} hypotheses, {MAX_ITERATIONS} iters)"
     
     # Create output directory
     test_dir = datetime.now().strftime("test_%Y%m%d_%H%M%S")
@@ -53,6 +63,14 @@ async def quick_test():
         test_dir
     )
     os.makedirs(output_dir, exist_ok=True)
+    
+    print(f"📊 Hyperparameters:")
+    print(f"   - n_hypotheses: {N_HYPOTHESES}")
+    print(f"   - max_subtopics: {MAX_SUBTOPICS}")
+    print(f"   - max_iterations: {MAX_ITERATIONS}")
+    print(f"   - timeout_per_hypothesis: {TIMEOUT_PER_HYPOTHESIS}s")
+    print(f"   - max_turns: {MAX_TURNS}")
+    print()
     
     print(f"📁 Output directory: {output_dir}")
     print(f"📊 Monitor with: coscientist-live {test_dir}")
@@ -96,8 +114,7 @@ async def quick_test():
     
     try:
         # THIS IS THE ACTUAL FRAMEWORK CALL
-        # n_hypotheses=2, max_subtopics=2 for quick test
-        await framework.start(n_hypotheses=2, max_subtopics=2)
+        await framework.start(n_hypotheses=N_HYPOTHESES, max_subtopics=MAX_SUBTOPICS)
         
         print()
         print("✅ Framework run complete!")
