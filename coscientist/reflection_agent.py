@@ -21,6 +21,7 @@ for the observations to review.
 """
 
 import asyncio
+import logging
 import os
 import re
 from typing import Optional, TypedDict
@@ -256,7 +257,16 @@ def deep_verification_node(
     ), f"Missing '_causal_reasoning'. Available keys: {available_keys}"
 
     # Combine assumption research results into a single string
-    assumption_research = "\n\n".join(state["_assumption_research_results"].values())
+    # TRUNCATE to prevent prompt from being too large
+    raw_assumption_research = "\n\n".join(state["_assumption_research_results"].values())
+    
+    # Limit total length to ~50,000 chars to avoid Gemini token limits
+    MAX_RESEARCH_LENGTH = 50000
+    if len(raw_assumption_research) > MAX_RESEARCH_LENGTH:
+        logging.warning(f"Assumption research too large ({len(raw_assumption_research)} chars), truncating to {MAX_RESEARCH_LENGTH}")
+        assumption_research = raw_assumption_research[:MAX_RESEARCH_LENGTH] + "\n\n... [truncated]"
+    else:
+        assumption_research = raw_assumption_research
 
     prompt = load_prompt(
         "deep_verification",
