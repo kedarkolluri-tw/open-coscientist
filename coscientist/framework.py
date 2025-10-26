@@ -135,6 +135,17 @@ class CoscientistFramework:
 
         self.config = config
         self.state_manager = state_manager
+        
+        # Initialize research provider at framework level
+        # This will be used by ALL agents (literature_review, reflection, etc.)
+        from coscientist.research_backend import create_research_provider
+        from coscientist.config_loader import load_researcher_config
+        
+        research_config = load_researcher_config()
+        output_dir = state_manager._state._output_dir
+        self.research_provider = create_research_provider(research_config, output_dir)
+        
+        logging.info(f"Research provider initialized: {research_config.get('RESEARCH_BACKEND', 'openai_deep_research')}")
 
     def _validate_configuration(self) -> None:
         """
