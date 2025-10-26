@@ -114,12 +114,21 @@ async def _write_subtopic_report(subtopic: str, main_goal: str) -> str:
     )
 
     # Conduct research and generate report with timeout
+    # Note: These are sync functions but running in async context
     try:
-        _ = await asyncio.wait_for(researcher.conduct_research(), timeout=180.0)
-        report = await asyncio.wait_for(researcher.write_report(), timeout=60.0)
+        # Run in executor to properly handle timeouts
+        loop = asyncio.get_event_loop()
+        _ = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: researcher.conduct_research()),
+            timeout=180.0
+        )
+        report = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: researcher.write_report()),
+            timeout=60.0
+        )
         return report
     except asyncio.TimeoutError:
-        return f"# Research Timeout\n\nResearch for subtopic '{subtopic}' timed out. Unable to complete research within time limit."
+        return f"# Research Timeout\n\nResearch for subtopic '{subtopic}' timed out after 180 seconds. Web scraping is taking too long."
     except Exception as e:
         return f"# Research Error\n\nError researching subtopic '{subtopic}': {str(e)}"
 
