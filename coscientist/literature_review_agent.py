@@ -8,6 +8,7 @@ Implementation uses LangGraph to:
 """
 
 import asyncio
+import logging
 import os
 import re
 from typing import TypedDict
@@ -133,11 +134,12 @@ async def _parallel_research_node(
     subtopics = state["subtopics"]
     main_goal = state["goal"]
 
-    # Create research tasks for all subtopics
-    research_tasks = [_write_subtopic_report(topic, main_goal) for topic in subtopics]
+    # Create research tasks for all subtopics  
+    # Wrap coroutines in Task objects so we can cancel them if needed
+    research_tasks = [asyncio.create_task(_write_subtopic_report(topic, main_goal)) for topic in subtopics]
 
     # Execute all research tasks in parallel with hard timeout
-    # Each task has 180s timeout, so 5 subtopics * 180s = 900s max
+    # IMPORTANT: If this times out, cancel all tasks to prevent background hangs
     try:
         subtopic_reports = await asyncio.wait_for(
             asyncio.gather(*research_tasks, return_exceptions=True),
@@ -150,8 +152,16 @@ async def _parallel_research_node(
             for report in subtopic_reports
         ]
     except asyncio.TimeoutError:
+        # Cancel all pending tasks to prevent background hangs
+        logging.warning(f"Literature review timed out after 900s. Cancelling all research tasks.")
+        for task in research_tasks:
+            if not task.done():
+                task.cancel()
+        # Wait for cancellations to propagate
+        await asyncio.gather(*research_tasks, return_exceptions=True)
+        
         subtopic_reports = [
-            f"# Research Timeout\n\nResearch for subtopic '{topic}' timed out after 15 minutes."
+            f"# Research Timeout\n\nResearch for subtopic '{topic}' timed out after 15 minutes. Web scraping was taking too long."
             for topic in subtopics
         ]
     except Exception as e:
