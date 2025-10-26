@@ -86,20 +86,100 @@ Features include:
 - **Supervisor Decisions**: Workflow orchestration logs
 - **Final Report**: Comprehensive research summary
 
-### Start a research run in Python
+### Quick Start Example
+
+#### 1. Run a Research Task
+
 ```python
+# tests/test_simple.py
 import asyncio
 from coscientist.framework import CoscientistConfig, CoscientistFramework
 from coscientist.global_state import CoscientistState, CoscientistStateManager
 
-goal = "How does the gut microbiome influence rheumatoid arthritis and can probiotics help to mitigate symptoms? If so, which ones are promising?"
+# Define your research question
+goal = "What is CRISPR gene editing and how does it work?"
 initial_state = CoscientistState(goal=goal)
 
+# Create framework
 config = CoscientistConfig()
 state_manager = CoscientistStateManager(initial_state)
 cosci = CoscientistFramework(config, state_manager)
 
+# Run research (takes 1-2 hours)
 final_report, final_meta_review = asyncio.run(cosci.run())
+
+# Results
+print(final_report)
+print(final_meta_review)
+```
+
+#### 2. Monitor Progress (in another terminal)
+
+```bash
+# Start monitoring (in another terminal)
+coscientist-monitor "What is CRISPR gene editing and how does it work?"
+
+# Or list all research goals
+coscientist-list
+```
+
+**Expected output**:
+```
+📊 Monitoring progress: What is CRISPR gene editing and how does it work?
+📁 File: ~/.coscientist/8f3200309e4a/progress.txt
+
+2025-10-25T15:00:00 | START | Literature Review and initial hypothesis generation
+2025-10-25T15:05:30 | DONE | Literature review complete, 4 hypotheses generated
+2025-10-25T15:05:31 | ITERATION | 1/20: Starting
+2025-10-25T15:05:32 | ACTION | generate_new_hypotheses
+2025-10-25T15:10:15 | STATUS | 0 reviewed, 8 total hypotheses, 5% complete
+2025-10-25T15:10:16 | ITERATION | 2/20: Starting
+...
+```
+
+#### 3. Resume Interrupted Research
+
+```python
+# Resume from last checkpoint
+from coscientist.framework import CoscientistConfig, CoscientistFramework
+from coscientist.global_state import CoscientistState, CoscientistStateManager
+
+# Load existing state
+goal = "What is CRISPR gene editing?"
+state = CoscientistState.load_latest(goal=goal)
+
+# Continue where we left off
+config = CoscientistConfig()
+state_manager = CoscientistStateManager(state)
+cosci = CoscientistFramework(config, state_manager)
+
+final_report, meta_review = asyncio.run(cosci.run())
+```
+
+#### 4. View Results in UI
+
+```bash
+# Launch interactive dashboard
+coscientist-interact
+
+# Then navigate to:
+# - Tournament Rankings: See hypothesis rankings
+# - Proximity Graph: Visualize similarity
+# - Meta-Reviews: Read strategic insights
+# - Final Report: Complete summary
+```
+
+### Custom Storage Location
+
+```bash
+# Use custom directory for research data
+export COSCIENTIST_DIR=./my_research_data
+
+# Then run research normally
+python tests/test_simple.py
+
+# Monitor progress
+coscientist-monitor "<your goal>"
 ```
 
 ## Performance & Scalability

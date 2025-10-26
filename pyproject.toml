@@ -23,7 +23,20 @@ dependencies = [
     "openinference-instrumentation-langchain>=0.1.0",
     "streamlit>=1.50.0",
     "st-cytoscape>=0.0.5",
+    "python-dotenv>=1.0.0",
 ]
+
+[project.scripts]
+coscientist-interact = "coscientist.interact.tournament_viewer:main"
+coscientist-monitor = "coscientist.cli.monitor_progress:main"
+coscientist-list = "coscientist.cli.list_research_goals:main"
+coscientist-status = "coscientist.cli.status:main"
+
+[tool.setuptools]
+packages = ["coscientist"]
+
+[tool.setuptools.package-data]
+"coscientist" = ["prompts/*.md", "interact/*.md"]
 
 [project.optional-dependencies]
 dev = [

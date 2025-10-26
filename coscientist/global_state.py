@@ -1,4 +1,4 @@
-import hashlib
+import glob
 import os
 import pickle
 import shutil
@@ -21,7 +21,30 @@ from coscientist.reflection_agent import ReflectionState
 from coscientist.supervisor_agent import SupervisorDecisionState
 
 # Global configuration for output directory
+# Can be changed with: export COSCIENTIST_DIR=/path/to/dir
 _OUTPUT_DIR = os.environ.get("COSCIENTIST_DIR", os.path.expanduser("~/.coscientist"))
+
+# Progress file name
+_PROGRESS_FILE = "progress.txt"
+
+
+def log_progress(output_dir: str, marker: str, details: str) -> None:
+    """
+    Log progress marker to file for user monitoring.
+    
+    Parameters
+    ----------
+    output_dir : str
+        The research output directory
+    marker : str
+        Progress marker (START, ITERATION, ACTION, STATUS, DONE, ERROR)
+    details : str
+        Detailed information about the progress
+    """
+    progress_file = os.path.join(output_dir, _PROGRESS_FILE)
+    with open(progress_file, "a") as f:
+        f.write(f"{datetime.now().isoformat()} | {marker} | {details}\n")
+        f.flush()
 
 
 def _maybe_save(n: int = 1):
@@ -129,30 +152,34 @@ class CoscientistState:
     @staticmethod
     def _hash_goal(goal: str) -> str:
         """
-        Generate a hash string from the goal for directory naming.
-
+        Generate a directory name using datetime instead of hash.
+        
+        Much simpler than hashing - creates readable folder names like:
+        research_20251025_143000
+        
         Parameters
         ----------
         goal : str
-            The research goal string
+            The research goal string (unused, kept for compatibility)
 
         Returns
         -------
         str
-            First 12 characters of SHA256 hash of the normalized goal
+            Directory name based on current datetime
         """
-        normalized_goal = CoscientistState._normalize_goal(goal)
-        return hashlib.sha256(normalized_goal.encode("utf-8")).hexdigest()[:12]
+        return datetime.now().strftime("research_%Y%m%d_%H%M%S")
 
     @classmethod
     def list_all_goals(cls) -> list[tuple[str, str]]:
         """
-        List all research goals with their corresponding hash directories.
+        List all research goals with their corresponding directories.
+        
+        Now returns datetime-based directories sorted by most recent first.
 
         Returns
         -------
         list[tuple[str, str]]
-            List of (original_goal, hash_directory) tuples for all existing goal directories
+            List of (original_goal, directory_name) tuples for all existing research directories
         """
         if not os.path.exists(_OUTPUT_DIR):
             return []
@@ -171,33 +198,51 @@ class CoscientistState:
                         # Skip directories with unreadable goal files
                         continue
 
-        # Sort by goal string for consistent ordering
-        goals.sort(key=lambda x: x[0])
+        # Sort by directory name (datetime) - most recent first
+        goals.sort(key=lambda x: x[1], reverse=True)
         return goals
 
     @classmethod
     def clear_goal_directory(cls, goal: str) -> str:
         """
-        Clear the directory for a specific goal.
+        Clear ALL directories for a specific goal (since datetime creates multiple).
+        
+        Now searches by goal text in goal.txt files.
 
         Parameters
         ----------
         goal : str
-            The research goal whose directory should be cleared
+            The research goal whose directories should be cleared
 
         Returns
         -------
         str
-            Confirmation message with the path that was cleared
+            Confirmation message with the paths that were cleared
         """
-        goal_hash = cls._hash_goal(goal)
-        goal_dir = os.path.join(_OUTPUT_DIR, goal_hash)
-
-        if os.path.exists(goal_dir):
-            shutil.rmtree(goal_dir)
-            return f"Successfully cleared directory: {goal_dir}"
+        normalized_goal = cls._normalize_goal(goal)
+        cleared_dirs = []
+        
+        if not os.path.exists(_OUTPUT_DIR):
+            return f"No research directory found: {_OUTPUT_DIR}"
+        
+        for item in os.listdir(_OUTPUT_DIR):
+            item_path = os.path.join(_OUTPUT_DIR, item)
+            if os.path.isdir(item_path):
+                goal_file = os.path.join(item_path, "goal.txt")
+                if os.path.exists(goal_file):
+                    try:
+                        with open(goal_file, encoding="utf-8") as f:
+                            existing_goal = f.read().strip()
+                        if cls._normalize_goal(existing_goal) == normalized_goal:
+                            shutil.rmtree(item_path)
+                            cleared_dirs.append(item_path)
+                    except:
+                        continue
+        
+        if cleared_dirs:
+            return f"Successfully cleared {len(cleared_dirs)} directories: {', '.join(cleared_dirs)}"
         else:
-            return f"Directory does not exist: {goal_dir}"
+            return f"No directories found for goal: {goal}"
 
     # Persistence methods
     def save(self) -> str:
@@ -271,8 +316,33 @@ class CoscientistState:
             raise ValueError("Must specify either directory or goal parameter")
 
         if goal is not None:
-            goal_hash = CoscientistState._hash_goal(goal)
-            search_directory = os.path.join(_OUTPUT_DIR, goal_hash)
+            # Search for most recent directory containing this goal
+            normalized_goal = CoscientistState._normalize_goal(goal)
+            
+            # Find all directories with matching goal
+            matching_dirs = []
+            for item in os.listdir(_OUTPUT_DIR):
+                item_path = os.path.join(_OUTPUT_DIR, item)
+                if os.path.isdir(item_path):
+                    goal_file = os.path.join(item_path, "goal.txt")
+                    if os.path.exists(goal_file):
+                        try:
+                            with open(goal_file, encoding="utf-8") as f:
+                                existing_goal = f.read().strip()
+                            if CoscientistState._normalize_goal(existing_goal) == normalized_goal:
+                                # Check for checkpoints
+                                checkpoints = glob.glob(os.path.join(item_path, "coscientist_state_*.pkl"))
+                                if checkpoints:
+                                    matching_dirs.append((item_path, max(checkpoints, key=os.path.getmtime)))
+                        except:
+                            continue
+            
+            if not matching_dirs:
+                return []
+            
+            # Return checkpoints from most recent directory
+            _, most_recent_checkpoint = max(matching_dirs, key=lambda x: os.path.getmtime(x[1]))
+            return [most_recent_checkpoint]
         else:
             search_directory = directory
 

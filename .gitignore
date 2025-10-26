@@ -123,9 +123,6 @@ logs/
 *.log
 *.err
 
-# Test files in root (should be in tests/)
-test_*.py
-*_test.py
 
 # Lock files (optional - some teams prefer to commit these)
 uv.lock
@@ -145,15 +142,3 @@ Pipfile.lock
 secrets.json
 config.local.json
 
-# Documentation drafts (but keep docs/ directory)
-*_draft.md
-
-# Keep agents/ directory but ignore temporary planning files
-agents/*_temp.md
-agents/*_draft.md
-agents/refactor_plan*.md
-agents/*_notes.md
-
-# Keep docs/ directory but ignore temporary files
-docs/*_temp.md
-docs/*_draft.md

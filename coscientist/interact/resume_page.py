@@ -3,8 +3,8 @@ import multiprocessing
 import os
 
 import streamlit as st
-from background import _get_done_file_path, check_coscientist_status
-from common import get_available_states
+from coscientist.interact.background import _get_done_file_path, check_coscientist_status
+from coscientist.interact.common import get_available_states
 
 from coscientist.framework import CoscientistConfig, CoscientistFramework
 from coscientist.global_state import CoscientistState, CoscientistStateManager

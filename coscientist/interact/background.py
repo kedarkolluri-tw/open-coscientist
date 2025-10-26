@@ -5,21 +5,15 @@ from coscientist.framework import CoscientistConfig, CoscientistFramework
 from coscientist.global_state import CoscientistState, CoscientistStateManager
 
 
-def _get_done_file_path(goal: str) -> str:
-    """Gets the path for the 'done' file for a given goal."""
-    goal_hash = CoscientistState._hash_goal(goal)
-    # This assumes _OUTPUT_DIR is consistent.
-    output_dir = os.path.join(
-        os.environ.get("COSCIENTIST_DIR", os.path.expanduser("~/.coscientist")),
-        goal_hash,
-    )
-    return os.path.join(output_dir, "done.txt")
+def _get_done_file_path(state: CoscientistState) -> str:
+    """Gets the path for the 'done' file for a given state."""
+    return os.path.join(state._output_dir, "done.txt")
 
 
 def coscientist_process_target(goal: str):
     """The target function for the multiprocessing.Process."""
+    initial_state = None
     try:
-        # This will fail if the directory exists, which is what we want.
         initial_state = CoscientistState(goal=goal)
         config = CoscientistConfig()
         state_manager = CoscientistStateManager(initial_state)
@@ -30,30 +24,34 @@ def coscientist_process_target(goal: str):
 
     except Exception as e:
         # Log error to a file in the goal directory
-        goal_hash = CoscientistState._hash_goal(goal)
-        output_dir = os.path.join(
-            os.environ.get("COSCIENTIST_DIR", os.path.expanduser("~/.coscientist")),
-            goal_hash,
-        )
+        if initial_state:
+            output_dir = initial_state._output_dir
+        else:
+            # Fallback: create error log somewhere
+            output_dir = os.path.join(
+                os.environ.get("COSCIENTIST_DIR", os.path.expanduser("~/.coscientist")),
+                "errors"
+            )
         if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+            os.makedirs(output_dir, exist_ok=True)
         with open(os.path.join(output_dir, "error.log"), "w") as f:
             f.write(str(e))
     finally:
         # Create a "done" file to signal completion
-        done_file = _get_done_file_path(goal)
-        with open(done_file, "w") as f:
-            f.write("done")
+        if initial_state:
+            done_file = _get_done_file_path(initial_state)
+            with open(done_file, "w") as f:
+                f.write("done")
 
 
 def check_coscientist_status(goal: str) -> str:
     """Checks the status of a Coscientist run."""
-    goal_hash = CoscientistState._hash_goal(goal)
-    output_dir = os.path.join(
-        os.environ.get("COSCIENTIST_DIR", os.path.expanduser("~/.coscientist")),
-        goal_hash,
-    )
-
+    # Find most recent directory for this goal
+    state = CoscientistState.load_latest(goal=goal)
+    if not state:
+        return "not_started"
+    
+    output_dir = state._output_dir
     done_file = os.path.join(output_dir, "done.txt")
     error_file = os.path.join(output_dir, "error.log")
 

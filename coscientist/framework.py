@@ -24,7 +24,8 @@ from coscientist.generation_agent import (
     IndependentConfig,
     build_generation_agent,
 )
-from coscientist.global_state import CoscientistStateManager
+from coscientist.global_state import CoscientistStateManager, log_progress
+from coscientist.status_manager import StatusManager, ResearchStatus
 from coscientist.literature_review_agent import build_literature_review_agent
 from coscientist.meta_review_agent import build_meta_review_agent
 from coscientist.reasoning_types import ReasoningType
@@ -503,9 +504,16 @@ class CoscientistFramework:
             Maximum number of supervisor iterations to prevent infinite loops.
             Default is 20.
         """
+        # Get output directory for progress tracking
+        output_dir = self.state_manager._state._output_dir
+        status_manager = StatusManager(output_dir)
+        
         # Start off with 4 hypotheses
         if not self.state_manager.is_started:
+            log_progress(output_dir, "START", "Literature Review and initial hypothesis generation")
+            status_manager.update_status(ResearchStatus.RUNNING)
             _ = await self.start(n_hypotheses=4)
+            log_progress(output_dir, "DONE", f"Literature review complete, {len(self.state_manager._state.generated_hypotheses)} hypotheses generated")
 
         supervisor_agent = build_supervisor_agent(self.config.supervisor_agent_llm)
 
@@ -514,11 +522,19 @@ class CoscientistFramework:
         while not self.state_manager.is_finished and iteration < max_iterations:
             iteration += 1
             logging.info(f"Supervisor iteration {iteration}/{max_iterations}")
+            log_progress(output_dir, "ITERATION", f"{iteration}/{max_iterations}: Starting")
 
             initial_supervisor_state = self.state_manager.next_supervisor_state()
             final_supervisor_state = supervisor_agent.invoke(initial_supervisor_state)
             current_action = final_supervisor_state["action"]
             logging.info(f"Supervisor decided action: {current_action}")
+            log_progress(output_dir, "ACTION", f"{current_action}")
+            
+            # Log current status
+            num_reviewed = len(self.state_manager._state.reviewed_hypotheses)
+            num_hypotheses = len(self.state_manager._state.generated_hypotheses)
+            progress_pct = int((iteration / max_iterations) * 100)
+            log_progress(output_dir, "STATUS", f"{num_reviewed} reviewed, {num_hypotheses} total hypotheses, {progress_pct}% complete")
 
             assert (
                 current_action in self.available_actions()
@@ -532,5 +548,8 @@ class CoscientistFramework:
                 f"Reached maximum iterations ({max_iterations}). "
                 f"System may not have fully completed."
             )
+            status_manager.update_status(ResearchStatus.PAUSED, error=f"Reached max iterations ({max_iterations})")
+        else:
+            status_manager.update_status(ResearchStatus.COMPLETED)
 
         return self.state_manager.final_report, self.state_manager.meta_reviews[-1]

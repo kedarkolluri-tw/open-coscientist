@@ -13,19 +13,19 @@ for name, value in os.environ.items():
     print(f"{name}: {value}")
 
 # Import from modular pages
-from common import (
+from coscientist.interact.common import (
     get_available_states,
     load_coscientist_state,
     load_coscientist_state_by_goal,
 )
-from configuration_page import display_configuration_page
-from final_report_page import display_final_report_page
-from literature_review_page import display_literature_review_page
-from meta_reviews_page import display_meta_reviews_page
-from proximity_page import display_proximity_graph_page
-from resume_page import display_resume_page
-from supervisor_page import display_supervisor_page
-from tournament_page import display_tournament_page
+from coscientist.interact.configuration_page import display_configuration_page
+from coscientist.interact.final_report_page import display_final_report_page
+from coscientist.interact.literature_review_page import display_literature_review_page
+from coscientist.interact.meta_reviews_page import display_meta_reviews_page
+from coscientist.interact.proximity_page import display_proximity_graph_page
+from coscientist.interact.resume_page import display_resume_page
+from coscientist.interact.supervisor_page import display_supervisor_page
+from coscientist.interact.tournament_page import display_tournament_page
 
 st.set_page_config(page_title="Coscientist Viewer", page_icon="🧪", layout="wide")
 
