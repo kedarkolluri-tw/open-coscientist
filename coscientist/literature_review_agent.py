@@ -175,23 +175,23 @@ async def _parallel_research_node(
             progress = int((i+1)/len(subtopics)*100)
             task_complete("literature_review", task_id, "Complete", output_dir, progress=progress)
         
-        # Filter out exceptions
-        subtopic_reports = [
-            report if not isinstance(report, Exception) 
-            else f"# Research Error\n\nError: {str(report)}"
-            for report in subtopic_reports
-        ]
+        # Check if any research failed - FAIL FAST, don't continue with garbage
+        exceptions = [r for r in subtopic_reports if isinstance(r, Exception)]
+        if exceptions:
+            error_msg = f"Research failed for {len(exceptions)}/{len(subtopics)} subtopics: {exceptions[0]}"
+            logging.error(error_msg)
+            phase_complete("literature_review", f"FAILED: {error_msg}", output_dir)
+            raise RuntimeError(error_msg) from exceptions[0]
         
+        # All research succeeded
         phase_complete("literature_review", f"All {len(subtopics)} subtopics researched", output_dir)
         
     except Exception as e:
         logging.error(f"Parallel research failed: {e}")
-        subtopic_reports = [
-            f"# Research Error\n\nError researching subtopic '{topic}': {str(e)}"
-            for topic in subtopics
-        ]
-        phase_complete("literature_review", f"Failed: {str(e)}", output_dir)
-
+        phase_complete("literature_review", f"FAILED: {str(e)}", output_dir)
+        raise  # Re-raise to STOP EXECUTION immediately
+    
+    # Success path only
     if state.get("subtopic_reports", False):
         subtopic_reports = state["subtopic_reports"] + subtopic_reports
 
@@ -222,9 +222,13 @@ def build_literature_review_agent(llm: BaseChatModel, framework=None) -> StateGr
         lambda state: _topic_decomposition_node(state, llm),
     )
 
+    # Wrap async function properly for LangGraph
+    async def _wrapped_parallel_research(state: LiteratureReviewState):
+        return await _parallel_research_node(state, framework)
+    
     graph.add_node(
         "parallel_research",
-        lambda state: _parallel_research_node(state, framework),
+        _wrapped_parallel_research,
     )
 
     graph.add_edge("topic_decomposition", "parallel_research")

@@ -381,7 +381,7 @@ class HybridResearchProvider:
         else:
             raise ValueError(f"Unknown research backend: {backend}")
         
-        # Create fallback provider (GPT-Researcher)
+        # Create fallback provider (GPT-Researcher) ONLY if enabled
         self.fallback = GPTResearcherProvider(config, output_dir) if fallback_enabled else None
         self.config = config
         self.output_dir = output_dir
@@ -390,24 +390,13 @@ class HybridResearchProvider:
         return self.primary.supports_background_mode()
     
     async def conduct_research(self, query: str, task_id: str) -> str:
-        """Conduct research with primary, fallback on failure."""
+        """Conduct research with primary - NO FALLBACK, fail fast."""
         try:
             return await self.primary.conduct_research(query, task_id)
         except Exception as e:
-            logger.warning(f"Primary research backend failed: {e}")
-            
-            if self.fallback:
-                logger.info("Falling back to GPT-Researcher")
-                from coscientist.global_state import log_progress
-                log_progress(self.output_dir, "RESEARCH_FALLBACK", f"{task_id}: Using GPT-Researcher fallback")
-                
-                try:
-                    return await self.fallback.conduct_research(query, task_id)
-                except Exception as fallback_error:
-                    logger.error(f"Fallback also failed: {fallback_error}")
-                    raise
-            else:
-                raise
+            logger.error(f"Research backend FAILED: {e}")
+            # NO FALLBACK - Just raise immediately
+            raise RuntimeError(f"Research failed for {task_id}: {e}") from e
     
     async def get_result(self, task_id: str) -> Optional[str]:
         """Get result from primary provider."""
