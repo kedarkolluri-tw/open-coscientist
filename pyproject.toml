@@ -24,6 +24,7 @@ dependencies = [
     "streamlit>=1.50.0",
     "st-cytoscape>=0.0.5",
     "python-dotenv>=1.0.0",
+    "perplexityai>=0.17.1",
 ]
 
 [project.scripts]
@@ -32,6 +33,7 @@ coscientist-monitor = "coscientist.cli.monitor_progress:main"
 coscientist-live = "coscientist.cli.live_monitor:main"
 coscientist-list = "coscientist.cli.list_research_goals:main"
 coscientist-status = "coscientist.cli.status:main"
+coscientist-monitor-agents = "coscientist.cli.agent_monitor:main"
 
 [tool.setuptools]
 packages = ["coscientist"]

@@ -303,8 +303,19 @@ class CoscientistFramework:
         # we can't use asyncio.wait_for here. The timeout should be implemented
         # in the agent itself or by making this method async.
         logging.info(f"Starting hypothesis generation with mode: {mode}")
+        
+        # Add agent state tracking
+        from coscientist.agent_state_tracker import create_tracker
+        tracker = create_tracker(
+            output_dir=self.state_manager._state._output_dir,
+            agent_name=f"generation_{mode}"
+        )
+        
         try:
-            final_generation_state = generation_agent.invoke(initial_generation_state)
+            final_generation_state = generation_agent.invoke(
+                initial_generation_state,
+                config={"callbacks": [tracker]}
+            )
             self.state_manager.add_generated_hypothesis(
                 final_generation_state["hypothesis"]
             )
