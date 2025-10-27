@@ -12,7 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-from coscientist.global_state import _OUTPUT_DIR
+# Import _OUTPUT_DIR without importing global_state module
+# This avoids loading LLM config at import time
+_OUTPUT_DIR = os.environ.get("COSCIENTIST_DIR", os.path.expanduser("~/.coscientist"))
 
 
 class AgentDAGNode:
