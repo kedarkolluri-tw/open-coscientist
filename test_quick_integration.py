@@ -85,7 +85,10 @@ async def quick_test():
     
     # Initialize framework (this should create research provider)
     print("2️⃣  Initializing framework with research backend...")
-    config = CoscientistConfig()
+    config = CoscientistConfig(
+        timeout_per_hypothesis=TIMEOUT_PER_HYPOTHESIS,
+        max_turns=MAX_TURNS,
+    )
     framework = CoscientistFramework(config, state_manager)
     
     # Verify research provider exists
@@ -115,7 +118,11 @@ async def quick_test():
     
     try:
         # THIS IS THE ACTUAL FRAMEWORK CALL
+        # Start with literature review and 2 hypotheses
         await framework.start(n_hypotheses=N_HYPOTHESES, max_subtopics=MAX_SUBTOPICS)
+        
+        # Then run the supervisor loop (limited to MAX_ITERATIONS iterations)
+        final_report, final_meta = await framework.run(max_iterations=MAX_ITERATIONS)
         
         print()
         print("✅ Framework run complete!")

@@ -91,6 +91,8 @@ class CoscientistConfig:
         final_report_agent_llm: BaseChatModel = None,
         proximity_agent_embedding_model: Embeddings = None,
         specialist_fields: list[str] | None = None,
+        timeout_per_hypothesis: float = 300.0,
+        max_turns: int = 10,
     ):
         """
         Initialize Coscientist configuration.
@@ -117,6 +119,10 @@ class CoscientistConfig:
 
         # Default fields
         self.specialist_fields = specialist_fields or ["biology"]
+        
+        # Hyperparameters
+        self.timeout_per_hypothesis = timeout_per_hypothesis
+        self.max_turns = max_turns
 
 
 class CoscientistFramework:
@@ -283,7 +289,7 @@ class CoscientistFramework:
                     name: self.config.generation_agent_llms[llm_name]
                     for name, llm_name in zip(agent_names, llm_names)
                 },
-                max_turns=10,
+                max_turns=self.config.max_turns,
             )
             first_agent_name = agent_names[0]
 
@@ -342,7 +348,8 @@ class CoscientistFramework:
 
         # TODO: Make this async
         _ = await self.generate_new_hypotheses(
-            n_hypotheses=max(0, n_hypotheses - self.state_manager.total_hypotheses)
+            n_hypotheses=max(0, n_hypotheses - self.state_manager.total_hypotheses),
+            timeout_per_hypothesis=self.config.timeout_per_hypothesis,
         )
 
         # Run the EloTournament

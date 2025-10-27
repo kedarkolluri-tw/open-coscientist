@@ -408,38 +408,39 @@ def build_deep_verification_agent(
 
 async def _write_assumption_research_report(assumption_evaluation_query: str) -> str:
     """
-    Conduct research for a single sub-assumption using GPTResearcher.
+    Conduct research for a single sub-assumption using Perplexity (via research backend).
 
     Parameters
     ----------
-    assumption : str
-        The primary assumption being researched
-    sub_assumption : str
-        The specific sub-assumption to research
-    hypothesis : str
-        The main hypothesis for context
+    assumption_evaluation_query : str
+        The research query
 
     Returns
     -------
     str
         The research report
     """
-    researcher = GPTResearcher(
-        query=assumption_evaluation_query,
-        report_type="research_report",
-        report_format="markdown",
-        verbose=False,
-        tone=Tone.Objective,
-        config_path=os.path.join(os.path.dirname(__file__), "researcher_config.json"),
-    )
-
-    # Conduct research and generate report with timeout
+    # Import here to avoid circular deps
+    from coscientist.research_backend import create_research_provider
+    from coscientist.config_loader import load_researcher_config
+    
+    config = load_researcher_config()
+    output_dir = os.path.dirname(__file__)
+    research_provider = create_research_provider(config, output_dir)
+    
+    # Generate a unique task ID for this research
+    import uuid
+    task_id = f"assumption_research_{uuid.uuid4().hex[:8]}"
+    
     try:
-        _ = await asyncio.wait_for(researcher.conduct_research(), timeout=180.0)
-        report = await asyncio.wait_for(researcher.write_report(), timeout=60.0)
+        # Conduct research with timeout (Perplexity is fast, ~30s)
+        report = await asyncio.wait_for(
+            research_provider.conduct_research(assumption_evaluation_query, task_id),
+            timeout=180.0
+        )
         return report
     except asyncio.TimeoutError:
-        return f"# Research Timeout\n\nResearch timed out after 180 seconds. Web scraping is taking too long."
+        return f"# Research Timeout\n\nResearch timed out after 180 seconds."
     except Exception as e:
         return f"# Research Error\n\nError during research: {str(e)}"
 
