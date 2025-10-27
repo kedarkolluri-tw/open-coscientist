@@ -154,6 +154,14 @@ class CoscientistFramework:
         self.progress_tracker = ProgressTracker(output_dir)
         
         logging.info(f"Research provider initialized: {research_config.get('RESEARCH_BACKEND', 'openai_deep_research')}")
+    
+    def _create_agent_tracker(self, agent_name: str):
+        """Create a state tracker for an agent invocation."""
+        from coscientist.agent_state_tracker import create_tracker
+        return create_tracker(
+            output_dir=self.state_manager._state._output_dir,
+            agent_name=agent_name
+        )
 
     def _validate_configuration(self) -> None:
         """
@@ -238,7 +246,11 @@ class CoscientistFramework:
                 parallel=False,
                 checkpointer=None,
             )
-            final_reflection_state = reflection_agent.invoke(initial_reflection_state)
+            tracker = self._create_agent_tracker("reflection")
+            final_reflection_state = reflection_agent.invoke(
+                initial_reflection_state,
+                config={"callbacks": [tracker]}
+            )
             if final_reflection_state["passed_initial_filter"]:
                 self.state_manager.add_reviewed_hypothesis(
                     final_reflection_state["reviewed_hypothesis"]
@@ -352,8 +364,10 @@ class CoscientistFramework:
             initial_lit_review_state = self.state_manager.next_literature_review_state(
                 max_subtopics=max_subtopics  # Now configurable
             )
+            tracker = self._create_agent_tracker("literature_review")
             final_lit_review_state = await literature_review_agent.ainvoke(
-                initial_lit_review_state
+                initial_lit_review_state,
+                config={"callbacks": [tracker]}
             )
             self.state_manager.update_literature_review(final_lit_review_state)
 
@@ -449,7 +463,11 @@ class CoscientistFramework:
                 mode="evolve_from_feedback",
                 llm=self.config.evolution_agent_llms[llm_name],
             )
-            final_evolution_state = evolution_agent.invoke(initial_evolution_state)
+            tracker = self._create_agent_tracker("evolution_evolve")
+            final_evolution_state = evolution_agent.invoke(
+                initial_evolution_state,
+                config={"callbacks": [tracker]}
+            )
             self.state_manager.add_evolved_hypothesis(
                 final_evolution_state["evolved_hypothesis"]
             )
@@ -465,7 +483,11 @@ class CoscientistFramework:
         evolution_agent = build_evolution_agent(
             mode="out_of_the_box", llm=self.config.evolution_agent_llms[llm_name]
         )
-        out_of_box_state = evolution_agent.invoke(out_of_box_initial_state)
+        tracker = self._create_agent_tracker("evolution_oob")
+        out_of_box_state = evolution_agent.invoke(
+            out_of_box_initial_state,
+            config={"callbacks": [tracker]}
+        )
         self.state_manager.add_evolved_hypothesis(
             out_of_box_state["evolved_hypothesis"]
         )
@@ -493,8 +515,10 @@ class CoscientistFramework:
         literature_review_agent = build_literature_review_agent(
             self.config.literature_review_agent_llm
         )
+        tracker = self._create_agent_tracker("literature_review_expand")
         final_lit_review_state = await literature_review_agent.ainvoke(
-            initial_lit_review_state
+            initial_lit_review_state,
+            config={"callbacks": [tracker]}
         )
         self.state_manager.update_literature_review(final_lit_review_state)
 
@@ -517,7 +541,11 @@ class CoscientistFramework:
             top_k=k_bracket
         )
         meta_review_agent = build_meta_review_agent(self.config.meta_review_agent_llm)
-        final_meta_review_state = meta_review_agent.invoke(initial_meta_review_state)
+        tracker = self._create_agent_tracker("meta_review")
+        final_meta_review_state = meta_review_agent.invoke(
+            initial_meta_review_state,
+            config={"callbacks": [tracker]}
+        )
         self.state_manager.update_meta_review(final_meta_review_state)
 
     async def finish(self) -> None:
@@ -525,7 +553,11 @@ class CoscientistFramework:
         final_report_agent = build_final_report_agent(
             self.config.final_report_agent_llm
         )
-        final_report_state = final_report_agent.invoke(initial_final_report_state)
+        tracker = self._create_agent_tracker("final_report")
+        final_report_state = final_report_agent.invoke(
+            initial_final_report_state,
+            config={"callbacks": [tracker]}
+        )
         self.state_manager.update_final_report(final_report_state)
 
     @classmethod
@@ -573,7 +605,11 @@ class CoscientistFramework:
             log_progress(output_dir, "ITERATION", f"{iteration}/{max_iterations}: Starting")
 
             initial_supervisor_state = self.state_manager.next_supervisor_state()
-            final_supervisor_state = supervisor_agent.invoke(initial_supervisor_state)
+            tracker = self._create_agent_tracker("supervisor")
+            final_supervisor_state = supervisor_agent.invoke(
+                initial_supervisor_state,
+                config={"callbacks": [tracker]}
+            )
             current_action = final_supervisor_state["action"]
             logging.info(f"Supervisor decided action: {current_action}")
             log_progress(output_dir, "ACTION", f"{current_action}")
