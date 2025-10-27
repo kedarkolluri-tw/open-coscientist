@@ -141,4 +141,5 @@ Pipfile.lock
 .env.test
 secrets.json
 config.local.json
+coscientist/researcher_config.json
 
